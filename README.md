@@ -6,19 +6,7 @@
 
 如何提交您自己的脚本：<a href="https://github.com/0xsdeo/AntiDebug_Breaker/wiki/%E6%8F%90%E4%BA%A4%E6%82%A8%E8%87%AA%E5%B7%B1%E7%9A%84hook%E8%84%9A%E6%9C%AC">AntiDebug_Breaker wiki</a>
 
-本地 3.1.0 版本新增 MCP：可通过 Agent 管理脚本、设置 Hook 参数、获取 Vue/React 路由，并通过扩展的 `chrome.debugger` 通道控制当前 Chrome 标签页，进行页面操作、网络分析和断点调试。`adb_navigate` 的 `action: "new"` 可新建标签页并访问指定网站，返回新 `tabId` 供后续分析使用。安装、配对、完整工具表和打包方法见 [MCP 使用文档](mcp/README.md)。旧版 3.0.8 不含 MCP bridge；本地 ZIP 不会自动发布到商店。
-
-从 3.0.8 升级时，域名/全局脚本选择与 Hook 参数会保留，旧版保存的超限关键词也可继续使用和删除。手动覆盖已解压的扩展目录后，先在 `chrome://extensions` 点击扩展的“重新加载”，再刷新已经打开的网页；仅重启浏览器可能仍使用旧后台，导致角标与脚本注入正常，但新版弹窗读不到开关和路由。遇到后台读取失败时，弹窗会明确提示，不会把未知状态显示为全部关闭。Vue/React 面板重新打开时会重新收集路由。
-
-3.1.0 的扩展基础功能要求 **Chrome 120+**，低于此版本的浏览器无法接收本次更新。MCP 默认关闭，普通扩展功能不需要 Node.js；启用 MCP 时才需要单独安装本地服务。商店升级应沿用原条目；开发者模式测试时请停用另一个版本，避免重复 Hook 同一网页。
-
-扩展新增必需的 `debugger` 权限：Chrome 不支持将它设为运行时可选权限。旧版商店扩展升级后，Chrome 可能要求确认新增权限并重新启用扩展。[Chrome 权限说明](https://developer.chrome.com/docs/extensions/reference/api/permissions)
-
-首次使用时，在弹窗的 MCP 标签填写地址和配对密钥，点击 **“启用 MCP 并允许 Agent 控制浏览器”**，一次保存配对信息并开启 MCP 连接与浏览器控制。两项都已启用时，主按钮显示“保存连接设置”；连接已启用但浏览器控制停用时，主按钮显示“重新启用浏览器控制”，点击时也会保存当前配对信息。启用状态和配对信息会在正常重启后保留；旧版已配对但未允许浏览器控制的用户升级后保持原状态，需明确点击启用。Agent 不能自行开启浏览器控制。
-
-配对后调用 `adb_connect_browser`，参数 `{}`，即可走扩展通道，无需开启远程调试或确认 Chrome 的远程会话连接弹窗。调试期间 Chrome 仍显示提示条：点击 Chrome 的取消只停用浏览器控制并释放扩展调试会话，MCP 连接保持原启用状态；点击面板的 **“停止 MCP”** 会同时停用 MCP 和浏览器控制，保留地址与密钥。恢复时需再次点击面板的启用按钮，正常重启不会恢复已停止的功能。这些操作不会撤销已声明的 Chrome 权限；普通脚本开关、Hook 参数和路由读取无需启用浏览器控制。
-
-原有远程 CDP 连接保留为备用通道：使用 `{"transport":"remote","channel":"chrome"}`，或提供本机调试端点；具体授权步骤见 MCP 文档。两种通道提供相同的 19 个工具；新增的 `adb_navigate action: "new"` 操作需要默认扩展通道，已有标签页导航仍支持两种通道。当前均不自动覆盖跨进程 iframe 和 workers。
+新增 **MCP** 和 **Skills** 功能，使用说明请参考 [MCP 文档](mcp/README.md) 和 [Skills 目录](skills/antidebug-breaker-skills/)。
 
 ## 赞助商
 
@@ -51,13 +39,9 @@ SpiderDemo 靶场练习网站：https://www.spiderdemo.cn
 将源码下载到本地后打开chrome，访问`chrome://extensions/`，点击左上角的`加载未打包的扩展程序`，然后选中源码文件夹即可：
 ![1753669187234](image/README/1753669187234.png)
 
-## MCP + Skills 配套包
+### MCP 与 Skills
 
-安装了含 MCP 功能的扩展后，在弹窗 **MCP** 页面点击 **“下载 MCP + Skills”**，在新标签页打开 [当前版本的 GitHub Release](https://github.com/0xsdeo/AntiDebug_Breaker/releases/tag/v3.1.0)，从 **Assets** 下载 `AntiDebug_Breaker-Agent-3.1.0.zip`。解压后按照根目录的 `安装说明.md` 安装 MCP 依赖、配置 Agent 客户端，并安装完整的技能目录；也可先阅读仓库中的 [中文安装说明](docs/agent-install.md)。商店用户继续使用原商店扩展，无需另装源码版扩展。
-
-配套包提供 MCP 代码、锁定的依赖清单、Skills 和中文安装说明；不包含 Node.js、`node_modules`、测试缓存或个人配对信息。需要 Node.js 22+，安装依赖时需要联网。MCP 服务由 Agent 客户端通过 stdio 启动，配对配置默认保存在用户目录，与下载包分开。
-
-维护者在完整源码的根目录运行 `node tools/package.mjs`，同时生成扩展包和配套包；只生成配套包可运行 `node tools/package-agent.mjs`。下载按钮打开固定版本的 GitHub Release 页面：发布当前版本时，在 [GitHub Releases](https://github.com/0xsdeo/AntiDebug_Breaker/releases) 的 `v3.1.0` Release 上传 `dist/AntiDebug_Breaker-Agent-3.1.0.zip`，保持附件文件名不变，并将对应扩展包通过原 Chrome 商店条目发布。**本地打包不会上传或发布；Release 尚未发布时页面不可用，附件尚未上传时 Assets 中不会出现配套包。** 完整构建和发布说明见 [MCP 使用文档](mcp/README.md#开发验证与发布打包)。
+在插件的 **MCP** 页面点击 **“下载 MCP + Skills”**，前往 GitHub 发布页获取配套包，安装步骤见 [安装说明](docs/agent-install.md)。
 
 ## 脚本使用场景
 
