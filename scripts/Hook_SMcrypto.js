@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_SMcrypto")) {
 // ==UserScript==
 // @name         Hook_smcrypto
 // @namespace    https://github.com/0xsdeo/AntiDebug_Breaker
@@ -89,6 +91,7 @@
 // 替换 SM2 doEncrypt 的方法
     function my_doEncrypt() {
         let result = Reflect.apply(raw_doEncrypt, this, arguments);
+        window.__ADB_OBSERVER__?.emit("Hook_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM2", operation: "encrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
         console.log("SM2 加密明文:", arguments[0]);
         console.log("SM2 加密公钥:", arguments[1]);
         console.log("SM2 加密密文:", result);
@@ -101,6 +104,7 @@
 // 替换 SM2 doDecrypt 的方法
     function my_doDecrypt() {
         let result = Reflect.apply(raw_doDecrypt, this, arguments);
+        window.__ADB_OBSERVER__?.emit("Hook_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM2", operation: "decrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
         console.log("SM2 解密密文:", arguments[0]);
         console.log("SM2 解密私钥:", arguments[1]);
         console.log("SM2 解密明文:", result);
@@ -113,6 +117,7 @@
 // 替换 SM4 doDecrypt 的方法
     function my_sm4_encrypt() {
         let result = Reflect.apply(raw_sm4_encrypt, this, arguments);
+        window.__ADB_OBSERVER__?.emit("Hook_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM4", operation: "encrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
         console.log("SM4 加密明文:", arguments[0]);
         console.log("SM4 加密key:", arguments[1]);
         if (arguments[2] && typeof arguments[2] === "object") {
@@ -136,6 +141,7 @@
 // 替换 SM4 doDecrypt 的方法
     function my_sm4_decrypt() {
         let result = Reflect.apply(raw_sm4_decrypt, this, arguments);
+        window.__ADB_OBSERVER__?.emit("Hook_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM4", operation: "decrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
         console.log("SM4 解密密文:", arguments[0]);
         console.log("SM4 解密key:", arguments[1]);
         if (arguments[2] && typeof arguments[2] === "object") {
@@ -159,6 +165,7 @@
 // 替换 SM3 encrypt 的方法
     function my_SM3() {
         let result = Reflect.apply(raw_sm3, this, arguments);
+        window.__ADB_OBSERVER__?.emit("Hook_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM3", operation: "digest", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
         console.log("SM3 加密明文：:", arguments[0]);
         console.log("SM3 加密密文：:", result);
         return result;
@@ -205,3 +212,6 @@
 
     Function.prototype.call = my_call;
 })();
+window.__ADB_OBSERVER__?.installed("Hook_SMcrypto");
+
+}

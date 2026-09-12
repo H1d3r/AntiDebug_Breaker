@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("Bypass_Debugger")) {
 // ==UserScript==
 // @name         Bypass_Debugger
 // @namespace    https://github.com/0xsdeo/Bypass_Debugger
@@ -16,6 +18,7 @@
 
     window.eval = function () {
         if (typeof arguments[0] == "string") {
+            if (arguments[0].includes("debugger")) window.__ADB_OBSERVER__?.emit("Bypass_Debugger", "antidebug", { api: "eval", code: arguments[0] });
             arguments[0] = arguments[0].replaceAll(/debugger/g, '');
         }
         return temp_eval(...arguments);
@@ -26,6 +29,7 @@
     Function = function () {
         for (let i = 0; i < arguments.length; i++) {
             if (typeof arguments[i] == "string") {
+                if (arguments[i].includes("debugger")) window.__ADB_OBSERVER__?.emit("Bypass_Debugger", "antidebug", { api: "Function", code: arguments[i] });
                 arguments[i] = arguments[i].replaceAll(/debugger/g, '');
             }
         }
@@ -37,6 +41,7 @@
     Function.prototype.constructor = function () {
         for (let i = 0; i < arguments.length; i++) {
             if (typeof arguments[i] == "string") {
+                if (arguments[i].includes("debugger")) window.__ADB_OBSERVER__?.emit("Bypass_Debugger", "antidebug", { api: "Function", code: arguments[i] });
                 arguments[i] = arguments[i].replaceAll(/debugger/g, '');
             }
         }
@@ -45,3 +50,6 @@
 
     Function.prototype.constructor.prototype = Function.prototype;
 })();
+window.__ADB_OBSERVER__?.installed("Bypass_Debugger");
+
+}

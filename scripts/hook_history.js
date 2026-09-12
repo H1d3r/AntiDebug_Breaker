@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_history")) {
 // ==UserScript==
 // @name         hook_history
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -15,3 +17,7 @@
     window.history.go = function() {};
     window.history.back = function () {};
 })();
+
+window.__ADB_OBSERVER__?.installed("hook_history");
+
+}

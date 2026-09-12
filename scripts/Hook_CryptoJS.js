@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_CryptoJS")) {
 // ==UserScript==
 // @name         Hook_CryptoJS
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -95,6 +97,7 @@
                     }
 
                     let key = arguments[1][0]["key"].toString();
+                    window.__ADB_OBSERVER__?.emit("Hook_CryptoJS", "crypto", { library: "CryptoJS", algorithm: "symmetric", operation: "encrypt", output: encrypt_text, key, iv: arguments[1][0].iv, evidence: "CipherParams shape" });
                     if (key !== "[object Object]") {
                         console.log("对称加密Hex key：", key);
                     } else {
@@ -137,6 +140,7 @@
                     console.log(...arguments);
 
                     let key = arguments[1][1].toString();
+                    window.__ADB_OBSERVER__?.emit("Hook_CryptoJS", "crypto", { library: "CryptoJS", algorithm: "symmetric", operation: "decrypt", key, options: arguments[1][2], evidence: "decrypt configuration shape" });
                     if (key !== "[object Object]") {
                         console.log("对称解密Hex key：", key);
                     } else {
@@ -176,6 +180,7 @@
                     arguments[0].__proto__.__proto__.finalize = function () {
                         if (!(Object.hasOwn(this, "init"))) {
                             let hash = temp_finalize.call(this, ...arguments);
+                            window.__ADB_OBSERVER__?.emit("Hook_CryptoJS", "crypto", { library: "CryptoJS", algorithm: "hash/HMAC", operation: "finalize", input: arguments[0], output: hash.toString(), keyAvailable: false });
                             console.log("哈希/HMAC 加密 原始数据：", ...arguments);
                             console.log("哈希/HMAC 加密 密文：", hash.toString());
                             console.log("哈希/HMAC 加密 密文长度：", hash.toString().length);
@@ -191,3 +196,6 @@
         return temp_apply.call(this, ...arguments);
     }
 })();
+window.__ADB_OBSERVER__?.installed("Hook_CryptoJS");
+
+}

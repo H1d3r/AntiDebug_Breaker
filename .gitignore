@@ -1,0 +1,31 @@
+# Reinstallable dependencies and package/browser caches
+node_modules/
+.npm-cache/
+.browser-cache/
+
+# Generated test output; keep tests/ and mcp/test/ in source control
+.test-artifacts/
+.test-profile/
+coverage/
+.nyc_output/
+*.log
+
+# Release archives belong in GitHub Releases, not the source tree
+/dist/
+
+# Personal pairing information and local client settings
+.antidebug-breaker/
+mcp.json
+.mcp.json
+**/.claude/settings.local.json
+.env
+.env.*
+!.env.example
+!.env.template
+
+# OS/editor temporary files
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+*~

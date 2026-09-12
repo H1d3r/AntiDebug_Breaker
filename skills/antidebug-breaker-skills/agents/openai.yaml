@@ -1,0 +1,4 @@
+interface:
+  display_name: "Antidebug_Breaker_skills"
+  short_description: "自主处理网站反调试、JS 加密逆向与 Vue/React 隐藏动态路由收集"
+  default_prompt: "使用 $antidebug-breaker-skills 完成目标页面的反调试、加密逆向或隐藏路由收集任务，自主选择工具并交付可验证的结果。"

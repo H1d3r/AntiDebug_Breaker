@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_close")) {
 // ==UserScript==
 // @name         hook_close
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -14,3 +16,6 @@
 
     window.close = function() {};
 })();
+window.__ADB_OBSERVER__?.installed("hook_close");
+
+}

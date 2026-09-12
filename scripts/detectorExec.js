@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
 (function () {
     'use strict';
 
@@ -1871,3 +1873,7 @@
     }
 
 })();
+
+window.__ADB_OBSERVER__?.installed("detectorExec");
+
+}

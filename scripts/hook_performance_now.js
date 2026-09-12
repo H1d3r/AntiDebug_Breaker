@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_performance_now")) {
 // ==UserScript==
 // @name         hook_performance_now
 // @namespace    http://tampermonkey.net/
@@ -20,12 +22,15 @@
         localStorage.removeItem("Antidebug_breaker_" + id + "_stack");
     }
 
+    let adbInitialized = false;
     function initHook() {
+        if (adbInitialized || window.__ADB_OBSERVER__?.isInstalled?.("hook_performance_now")) return;
         let value = Number(localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_value"));
         let is_debugger = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_debugger");
         let is_stack = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_stack");
 
         performance.now = function () {
+            window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { value });
             if (is_debugger === "1") {
                 debugger;
             }
@@ -36,6 +41,8 @@
         };
 
         clear_Antidebug(SCRIPT_ID);
+        adbInitialized = true;
+        window.__ADB_OBSERVER__?.installed(SCRIPT_ID);
     }
 
     function setupConfigListener() {
@@ -60,3 +67,5 @@
     // 立即设置监听器
     setupConfigListener();
 })();
+
+}

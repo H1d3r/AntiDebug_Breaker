@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ========== Toast提示功能（仅用于固定值保存） ==========
+    // ========== 保存结果与错误提示 ==========
+    let toastTimer;
     function showToast(message = '已保存') {
         const toast = document.getElementById('toast');
         if (!toast) return;
@@ -11,53 +12,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         toast.classList.add('show');
         
-        // 2秒后自动隐藏
-        setTimeout(() => {
+        // Give longer messages enough reading time; newer messages replace the timer.
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
             toast.classList.remove('show');
-        }, 2000);
+        }, Math.min(8000, Math.max(2000, String(message).length * 80)));
     }
     // ========================================================
     
-    // 🆕 自动触发Vue重扫描
-    function triggerVueRescan() {
-        try {
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs[0]) {
-                    chrome.tabs.sendMessage(tabs[0].id, {
-                        type: 'TRIGGER_VUE_RESCAN',
-                        source: 'antidebug-extension'
-                    }, () => {
-                        if (chrome.runtime.lastError) {}
-                    });
-                }
-            });
-        } catch (error) {
-            console.warn('触发Vue重扫描失败:', error);
-        }
-    }
-
-    // 自动触发React重扫描
-    function triggerReactRescan() {
-        try {
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs[0]) {
-                    chrome.tabs.sendMessage(tabs[0].id, {
-                        type: 'TRIGGER_REACT_RESCAN',
-                        source: 'antidebug-extension'
-                    }, () => {
-                        if (chrome.runtime.lastError) {}
-                    });
-                }
-            });
-        } catch (error) {
-            console.warn('触发React重扫描失败:', error);
-        }
-    }
-
-    // popup打开时自动触发重扫描
-    triggerVueRescan();
-    triggerReactRescan();
-
     // ========== Base模式偏好设置（全局持久化） ==========
     function getBaseModePreference() {
         try {
@@ -79,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const scriptsGrid = document.querySelector('.scripts-grid');
     const hookContent = document.querySelector('.hook-content');
     const vueContent = document.querySelector('.vue-content');
+    const mcpContent = document.querySelector('.mcp-content');
     const vueScriptsList = document.querySelector('.vue-scripts-list');
     const vueRouterData = document.querySelector('.vue-router-data');
     const vueVersionDisplay = document.querySelector('.vue-version-display');
@@ -91,6 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const hookFilterEnabledBtn = document.getElementById('hook-filter-enabled');
     const hookFilterDisabledBtn = document.getElementById('hook-filter-disabled');
     const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabScroller = document.querySelector('.tabs-container');
+    const previousTabs = document.getElementById('tabs-previous');
+    const nextTabs = document.getElementById('tabs-next');
     const vueRouteSearchContainer = document.querySelector('.vue-route-search-container');
     const vueRouteSearchInput = document.getElementById('vue-route-search-input');
     const routesActionsFooter = document.querySelector('.routes-actions-footer');
@@ -106,6 +72,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 🆕 全局模式相关DOM元素
     const globalModeToggle = document.getElementById('global-mode-toggle');
     const modeText = document.querySelector('.mode-text');
+    const stateNotice = document.getElementById('state-notice');
+    const stateNoticeText = document.getElementById('state-notice-text');
+    const stateNoticeDetails = document.getElementById('state-notice-details');
+    const stateNoticeErrors = document.getElementById('state-notice-errors');
 
     // 反反Hook检测开关DOM元素
     const antiAntiHookToggle = document.getElementById('antiantiHook-toggle');
@@ -161,7 +131,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 🆕 全局模式状态管理
     let isGlobalMode = false; // 当前是否为全局模式
-    let globalEnabledScripts = []; // 全局模式下启用的脚本
+    let latestState = null;
+    let stateRefreshTimer;
+    const routerRequests = new Map();
 
     // 🆕 Hook板块筛选状态（'enabled' | 'disabled' | null）
     let hookFilterState = null;
@@ -171,58 +143,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const GLOBAL_SCRIPTS_KEY = 'global_scripts';
     const LAST_VUE_SUBTAB_KEY = 'last_active_vue_subtab';
 
-    // 🆕 脚本组合转换函数：将合并脚本展开为独立脚本（移到前面以便其他函数使用）
-    const expandCombinedScripts = (scriptIds) => {
-        const expanded = [...scriptIds];
-        
-        // 检测 Hook_JSEncrypt_SMcrypto 并展开为两个独立脚本
-        const combinedIndex = expanded.indexOf('Hook_JSEncrypt_SMcrypto');
-        if (combinedIndex !== -1) {
-            // 移除合并脚本
-            expanded.splice(combinedIndex, 1);
-            // 添加两个独立脚本（如果不存在）
-            if (!expanded.includes('Hook_SMcrypto')) {
-                expanded.push('Hook_SMcrypto');
-            }
-            if (!expanded.includes('Hook_JSEncrypt')) {
-                expanded.push('Hook_JSEncrypt');
-            }
-        }
-        
-        return expanded;
-    };
-
-    // 🆕 初始化全局模式状态
-    function initializeGlobalMode() {
-        chrome.storage.local.get([GLOBAL_MODE_KEY, GLOBAL_SCRIPTS_KEY], (result) => {
-            // 获取模式状态，默认为标准模式
-            const mode = result[GLOBAL_MODE_KEY] || 'standard';
-            isGlobalMode = (mode === 'global');
-            
-            // 🆕 获取全局脚本列表并展开合并脚本
-            globalEnabledScripts = result[GLOBAL_SCRIPTS_KEY] || [];
-            
-            // 如果没有模式键值，创建默认配置
-            if (!result[GLOBAL_MODE_KEY]) {
-                chrome.storage.local.set({
-                    [GLOBAL_MODE_KEY]: 'standard',
-                    [GLOBAL_SCRIPTS_KEY]: []
-                });
-            }
-            
-            // 更新UI状态
-            updateModeUI();
-            
-            // 如果是全局模式，使用全局脚本列表（不展开，因为这是用于存储的）
-            if (isGlobalMode) {
-                // 注意：这里不展开，因为 globalEnabledScripts 用于存储
-                // UI 显示时会在 setTimeout 中展开
-            }
-        });
-    }
-
     // 🆕 更新模式UI显示
     function updateModeUI() {
+        globalModeToggle.disabled = false;
         globalModeToggle.checked = isGlobalMode;
         modeText.textContent = isGlobalMode ? '全局模式' : '标准模式';
     }
@@ -230,363 +153,191 @@ document.addEventListener('DOMContentLoaded', () => {
     // 更新反反Hook检测开关UI状态
     function updateAntiAntiHookToggle() {
         if (!antiAntiHookToggle) return;
+        antiAntiHookToggle.disabled = !latestState;
         const isEnabled = enabledScripts.includes('AntiAnti_Hook');
         antiAntiHookToggle.checked = isEnabled;
     }
 
-    // 计算所有已启用脚本的合并Hooks数据并存储
-    function updateMergedHooks(currentEnabledScripts) {
-        if (!allScripts || allScripts.length === 0) return;
-
-        if (!currentEnabledScripts.includes('AntiAnti_Hook')) {
-            chrome.storage.local.remove('antidebug_merged_hooks');
-            return;
+    async function command(method, params = {}) {
+        const request = chrome.runtime.sendMessage({ type: "ADB_COMMAND", method, params });
+        let reply;
+        if (method === 'state.get') {
+            // A cached 3.0.8 worker accepts the message port but never answers
+            // ADB_COMMAND. Bound this read without retrying or timing out writes.
+            let timer;
+            const unavailable = () => Object.assign(new Error('扩展后台未响应状态查询，可能仍在运行旧版后台。'), { code: 'BACKGROUND_UNAVAILABLE' });
+            try {
+                reply = await Promise.race([request, new Promise((_, reject) => {
+                    timer = setTimeout(() => reject(unavailable()), 5000);
+                })]);
+            } finally { clearTimeout(timer); }
+            if (!reply) throw unavailable();
+        } else reply = await request;
+        if (!reply?.ok) {
+            const error = reply?.error;
+            const message = error?.code === 'UNSUPPORTED_SCOPE'
+                ? '当前页面不支持按网站设置脚本。请先打开 HTTP/HTTPS 网站；本地文件请使用全局模式。'
+                : error?.message || '扩展服务没有响应';
+            throw Object.assign(new Error(message), { code: error?.code, details: error?.details });
         }
-
-        const merged = { Function: [], Property: [] };
-        let hasHooks = false;
-
-        currentEnabledScripts.forEach(scriptId => {
-            const script = allScripts.find(s => s.id === scriptId);
-            if (script && script.Hooks) {
-                hasHooks = true;
-                if (script.Hooks.Function) {
-                    script.Hooks.Function.forEach(fn => {
-                        if (!merged.Function.includes(fn)) {
-                            merged.Function.push(fn);
-                        }
-                    });
-                }
-                if (script.Hooks.Property) {
-                    script.Hooks.Property.forEach(prop => {
-                        if (!merged.Property.includes(prop)) {
-                            merged.Property.push(prop);
-                        }
-                    });
-                }
-            }
-        });
-
-        if (hasHooks) {
-            chrome.storage.local.set({ antidebug_merged_hooks: merged });
-        } else {
-            chrome.storage.local.remove('antidebug_merged_hooks');
-        }
+        return reply.result;
     }
 
-    // 🆕 模式切换处理（修复bug：添加旧模式脚本清理）
-    function handleModeToggle(newGlobalMode) {
-        const oldGlobalMode = isGlobalMode;
-        isGlobalMode = newGlobalMode;
-        
-        // 保存模式状态
-        const mode = isGlobalMode ? 'global' : 'standard';
-        chrome.storage.local.set({ [GLOBAL_MODE_KEY]: mode });
-        
-        // 🔧 关键修复：先清理旧模式的脚本注册
-        if (oldGlobalMode !== newGlobalMode) {
-            clearOldModeScripts(oldGlobalMode);
+    async function refreshState() {
+        if (!currentTab_obj) return;
+        let state;
+        try { state = await command("state.get", { tabId: currentTab_obj.id }); }
+        catch (error) {
+            renderStateReadError(error);
+            throw error;
         }
-        
-        if (isGlobalMode) {
-            // 切换到全局模式（展开合并脚本）
-            enabledScripts = expandCombinedScripts([...globalEnabledScripts]);
-        } else {
-            // 切换到标准模式
-            // 检查当前URL是否为web网站
-            if (currentTab_obj && currentTab_obj.url && 
-                (currentTab_obj.url.startsWith('http://') || currentTab_obj.url.startsWith('https://'))) {
-                
-                // 读取当前域名的脚本配置
-                chrome.storage.local.get([hostname], (result) => {
-                    if (result[hostname]) {
-                        // 存在配置，使用该配置（展开合并脚本）
-                        enabledScripts = expandCombinedScripts(result[hostname] || []);
-                    } else {
-                        // 不存在配置，创建空配置
-                        enabledScripts = [];
-                        chrome.storage.local.set({ [hostname]: [] });
-                    }
-                    
-                    // 更新UI显示和脚本注册
-                    updateModeUI();
-                    renderCurrentTab();
-                    updateScriptRegistration();
-                });
-                return;
-            } else {
-                // 不是web网站，清空脚本
-                enabledScripts = [];
-            }
-        }
-        
-        // 更新UI显示和脚本注册
+        enabledScripts = state.enabledScripts;
+        isGlobalMode = state.mode === "global";
+        latestState = state;
+        currentTab_obj.url = state.url;
+        hostname = state.hostname;
+        renderStateNotice(state);
         updateModeUI();
         renderCurrentTab();
-        updateScriptRegistration();
     }
 
-    // 🔧 新增：清理旧模式脚本的函数
-    function clearOldModeScripts(wasGlobalMode) {
-        chrome.runtime.sendMessage({
-            type: 'clear_mode_scripts',
-            clearGlobalMode: wasGlobalMode
+    function renderStateReadError(error) {
+        globalModeToggle.disabled = true;
+        if (antiAntiHookToggle) antiAntiHookToggle.disabled = true;
+        stateNotice.hidden = false;
+        stateNoticeText.textContent = '无法读取插件状态。若刚替换新版文件，请重新加载扩展后再刷新网页。';
+        stateNoticeErrors.textContent = `${error.message || String(error)}\n在 chrome://extensions 中找到 AntiDebug Breaker，点击“重新加载”，然后重新打开插件。原有配置会保留。`;
+        stateNoticeDetails.hidden = false;
+        stateNoticeDetails.open = true;
+    }
+
+    function renderStateNotice(state) {
+        const errors = [];
+        if (state.registrationError) errors.push(`脚本注册失败：${state.registrationError.message || state.registrationError.code || '请重新保存配置'}`);
+        for (const [id, error] of Object.entries(state.configErrors || {})) {
+            const name = allScripts.find(script => script.id === id)?.name || id;
+            errors.push(`${name}：${error.message || error.code || '配置无效，请修正'}`);
+        }
+        stateNotice.hidden = !errors.length;
+        stateNoticeText.textContent = errors.length ? '部分配置未生效，请查看错误并重新保存。' : '';
+        stateNoticeErrors.textContent = errors.join('\n');
+        stateNoticeDetails.hidden = !errors.length;
+        if (!errors.length) stateNoticeDetails.open = false;
+    }
+
+    function scheduleStateRefresh() {
+        clearTimeout(stateRefreshTimer);
+        stateRefreshTimer = setTimeout(() => refreshState().catch(() => {}), 50);
+    }
+
+    let uiWriteQueue = Promise.resolve();
+    function writeCommand(method, params) {
+        // Both the acknowledgement and refreshed mode belong to this queue slot.
+        const task = uiWriteQueue.then(async () => {
+            const resolvedParams = typeof params === 'function' ? await params() : params;
+            const result = await command(method, resolvedParams);
+            await refreshState();
+            return result;
+        }).catch(async error => {
+            showToast(error.message);
+            try { await refreshState(); } catch (_) {}
+        });
+        uiWriteQueue = task.catch(() => {});
+        return task;
+    }
+
+    function setScript(id, enabled) {
+        return writeCommand("scripts.set", async () => {
+            // Read at execution time, including after a failed mode change/refresh.
+            const state = await command('state.get', { tabId: currentTab_obj?.id });
+            return { tabId: currentTab_obj?.id, scope: state.mode === 'global' ? 'global' : 'hostname',
+                changes: [{ id, enabled }], apply: 'next_navigation' };
         });
     }
 
-    // 🆕 检查是否为有效的web网站
-    function isValidWebsite(url) {
-        return url && (url.startsWith('http://') || url.startsWith('https://'));
+    function handleModeToggle(enabled) {
+        return writeCommand("mode.set", { mode: enabled ? "global" : "standard" });
     }
 
-    // 🆕 更新脚本注册（通知background）
-    function updateScriptRegistration() {
-        // 发送前先合并脚本组合，确保注册的是合并版而非独立版
-        const scriptsToRegister = combineCombinableScripts(enabledScripts);
-        chrome.runtime.sendMessage({
-            type: 'update_scripts_registration',
-            hostname: isGlobalMode ? '*' : hostname,
-            enabledScripts: scriptsToRegister,
-            isGlobalMode: isGlobalMode
-        });
+    function acceptRoutes(framework, data) {
+        if (!data) return;
+        if (framework === "react") {
+            if (freezeReactRouteDisplayAfterNavigation) return;
+            setCachedReactRouterData(data);
+            if (currentTab === "vue" && currentVueSubTab === "react") displayReactMultipleInstances();
+        } else {
+            cachedVueDataList = data.type === "MULTIPLE_INSTANCES" ? data.instances : [data];
+            currentInstanceIndex = 0;
+            if (currentTab === "vue" && currentVueSubTab === "vue") displayMultipleInstances();
+        }
+    }
+    function handleServiceMessage(message) {
+        if (message.type === 'ADB_EVENT') {
+            if (message.event === 'config.changed' ||
+                (message.data?.tabId === currentTab_obj?.id && ['document.ready', 'config.applied'].includes(message.event))) {
+                scheduleStateRefresh();
+            }
+            return;
+        }
+        if (message.tabId !== currentTab_obj?.id) return;
+        if (message.type === "VUE_ROUTER_DATA_UPDATE") acceptRoutes("vue", message.data);
+        if (message.type === "REACT_ROUTER_DATA_UPDATE") acceptRoutes("react", message.data);
+    }
+    chrome.runtime.onMessage.addListener(handleServiceMessage);
+    async function requestRouterData(framework) {
+        if (!currentTab_obj) return;
+        const key = `${currentTab_obj.id}:${latestState?.documentId || ''}:${framework}`;
+        if (routerRequests.has(key)) return routerRequests.get(key);
+        // Only opening the popup/panel requests a bounded scan. Renders use cached data.
+        const request = (async () => {
+            try {
+                const result = await command("routes.get", { tabId: currentTab_obj.id, framework, rescan: true, timeoutMs: 2500 });
+                for (const item of result.results || []) if (item.data) acceptRoutes(item.framework, item.data);
+            } catch (error) { console.warn("路由数据暂不可用:", error.message); }
+        })();
+        routerRequests.set(key, request);
+        try { await request; } finally { routerRequests.delete(key); }
+    }
+    function requestVueRouterData() { return requestRouterData("vue"); }
+    function requestReactRouterData() { return requestRouterData("react"); }
+    function requestActiveRouterData() {
+        if (currentVueSubTab === 'vue' && enabledScripts.some(id => id === 'Get_Vue_0' || id === 'Get_Vue_1')) return requestVueRouterData();
+        if (currentVueSubTab === 'react' && enabledScripts.includes('Get_React_0')) return requestReactRouterData();
     }
 
-    // 监听来自 background 的路由数据更新
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        // React 路由数据更新
-        if (message.type === 'REACT_ROUTER_DATA_UPDATE' && message.hostname === hostname) {
-            if (freezeReactRouteDisplayAfterNavigation) {
-                return;
-            }
-            setCachedReactRouterData(message.data);
-            // 只有当前在 React 子 Tab 时才刷新显示
-            if (currentTab === 'vue' && currentVueSubTab === 'react') {
-                displayReactMultipleInstances();
-            }
-        }
+    // Load state in sequence; no timeout-based initialization race.
+    (async () => {
+        const [tabs, preferences, catalog] = await Promise.all([
+            chrome.tabs.query({ active: true, currentWindow: true }),
+            chrome.storage.local.get(["last_active_tab", LAST_VUE_SUBTAB_KEY]),
+            fetch(chrome.runtime.getURL("scripts.json")).then(response => response.json())
+        ]);
+        allScripts = catalog;
+        currentTab_obj = tabs[0];
+        try { hostname = new URL(currentTab_obj?.url).hostname; } catch (_) { hostname = ''; }
+        if (["antidebug", "hook", "vue", "mcp"].includes(preferences.last_active_tab)) currentTab = preferences.last_active_tab;
+        if (["vue", "react"].includes(preferences[LAST_VUE_SUBTAB_KEY])) currentVueSubTab = preferences[LAST_VUE_SUBTAB_KEY];
+        syncTabButtons('instant');
+        vueSubtabBtns.forEach(button => button.classList.toggle("active", button.dataset.subtab === currentVueSubTab));
+        renderCurrentTab();
+        await refreshState();
+        if (enabledScripts.some(id => id === "Get_Vue_0" || id === "Get_Vue_1")) requestVueRouterData();
+        if (enabledScripts.includes("Get_React_0")) requestReactRouterData();
+    })().catch(error => showToast(error.message));
 
-        if (message.type === 'VUE_ROUTER_DATA_UPDATE' && message.hostname === hostname) {
-            const data = message.data;
-            
-            // 处理多实例数据
-            if (data.type === 'MULTIPLE_INSTANCES' && data.instances) {
-                cachedVueDataList = data.instances;
-                currentInstanceIndex = 0; // 默认选中第一个
-                
-                // 保存到 storage
-                const storageKey = `${hostname}_vue_data`;
-                chrome.storage.local.set({
-                    [storageKey]: {
-                        type: 'MULTIPLE_INSTANCES',
-                        instances: data.instances,
-                        totalCount: data.totalCount,
-                        timestamp: Date.now()
-                    }
-                });
-                
-                // 显示多实例
-                displayMultipleInstances();
-            }
-            // 兼容单实例或未找到的情况
-            else {
-                cachedVueDataList = [data];
-                currentInstanceIndex = 0;
-                
-                // 保存到 storage
-                const storageKey = `${hostname}_vue_data`;
-                chrome.storage.local.set({
-                    [storageKey]: data
-                });
-                
-                // 显示单实例
-                displayMultipleInstances();
-            }
-        }
+    searchInput.addEventListener("input", event => {
+        const term = event.target.value.toLowerCase();
+        let scripts = getScriptsForCurrentTab().filter(script => script.name.toLowerCase().includes(term) ||
+            (currentTab === "antidebug" && script.description.toLowerCase().includes(term)));
+        if (currentTab === "antidebug") renderAntiDebugScripts(scripts);
+        else if (currentTab === "hook") renderHookScripts(applyHookFilter(scripts));
     });
-
-    // 请求页面的Vue Router数据
-    function requestVueRouterData() {
-        if (currentTab_obj && currentTab_obj.id) {
-            chrome.tabs.sendMessage(currentTab_obj.id, {
-                type: 'REQUEST_VUE_ROUTER_DATA'
-            }).catch(err => {
-                console.warn('请求Vue数据失败:', err);
-            });
-        }
-    }
-
-    // 请求页面的React Router数据
-    function requestReactRouterData() {
-        if (currentTab_obj && currentTab_obj.id) {
-            chrome.tabs.sendMessage(currentTab_obj.id, {
-                type: 'REQUEST_REACT_ROUTER_DATA'
-            }).catch(err => {
-                console.warn('请求React数据失败:', err);
-            });
-        }
-    }
-
-    // 获取当前标签页的域名
-    chrome.tabs.query({
-        active: true,
-        currentWindow: true
-    }, (tabs) => {
-        const tab = tabs[0];
-        if (!tab || !tab.url) return;
-
-        hostname = new URL(tab.url).hostname;
-        currentTab_obj = tab;
-
-        // 🆕 初始化全局模式
-        initializeGlobalMode();
-
-        // 加载脚本元数据
-        fetch(chrome.runtime.getURL('scripts.json'))
-            .then(response => response.json())
-            .then(scripts => {
-                allScripts = scripts;
-
-                // 🆕 根据模式获取启用状态
-                const getInitialScripts = () => {
-                    if (isGlobalMode) {
-                        return globalEnabledScripts;
-                    } else {
-                        // 标准模式：获取该域名下的启用状态
-                        chrome.storage.local.get([hostname, 'last_active_tab', LAST_VUE_SUBTAB_KEY], (result) => {
-                            // 🆕 展开合并脚本
-                            enabledScripts = expandCombinedScripts(result[hostname] || []);
-                            // 初始化合并Hooks数据
-                            updateMergedHooks(enabledScripts);
-
-                            // 恢复上次打开的板块
-                            if (result.last_active_tab) {
-                                currentTab = result.last_active_tab;
-                                // 更新UI中的按钮状态
-                                tabBtns.forEach(b => {
-                                    if (b.dataset.tab === currentTab) {
-                                        b.classList.add('active');
-                                    } else {
-                                        b.classList.remove('active');
-                                    }
-                                });
-                            }
-
-                            // 恢复Vue子Tab状态
-                            if (result[LAST_VUE_SUBTAB_KEY]) {
-                                currentVueSubTab = result[LAST_VUE_SUBTAB_KEY];
-                                vueSubtabBtns.forEach(b => {
-                                    b.classList.toggle('active', b.dataset.subtab === currentVueSubTab);
-                                });
-                            }
-
-                            renderCurrentTab();
-
-                            // 检查是否启用了 Get_Vue_0 或 Get_Vue_1 脚本
-                            const hasVueScript = enabledScripts.includes('Get_Vue_0') ||
-                                enabledScripts.includes('Get_Vue_1');
-
-                            // 如果启用了Vue脚本，立即请求数据
-                            if (hasVueScript) {
-                                requestVueRouterData();
-                            }
-
-                            // 如果启用了 Get_React_0，先从 storage 读取缓存，再请求实时数据
-                            if (enabledScripts.includes('Get_React_0')) {
-                                const reactStorageKey = `${hostname}_react_data`;
-                                chrome.storage.local.get([reactStorageKey], (storageResult) => {
-                                    if (storageResult[reactStorageKey]) {
-                                        setCachedReactRouterData(storageResult[reactStorageKey]);
-                                        if (currentTab === 'vue' && currentVueSubTab === 'react') {
-                                            displayReactMultipleInstances();
-                                        }
-                                    }
-                                    requestReactRouterData();
-                                });
-                            }
-                        });
-                        return [];
-                    }
-                };
-
-                // 延迟获取脚本，确保模式状态已初始化
-                setTimeout(() => {
-                    if (isGlobalMode) {
-                        // 🔧 修复：全局模式下也需要恢复上次打开的板块
-                            chrome.storage.local.get(['last_active_tab', LAST_VUE_SUBTAB_KEY], (result) => {
-                                // 恢复上次打开的板块
-                                if (result.last_active_tab) {
-                                    currentTab = result.last_active_tab;
-                                    // 更新UI中的按钮状态
-                                    tabBtns.forEach(b => {
-                                        if (b.dataset.tab === currentTab) {
-                                            b.classList.add('active');
-                                        } else {
-                                            b.classList.remove('active');
-                                        }
-                                    });
-                                }
-
-                                // 恢复Vue子Tab状态
-                                if (result[LAST_VUE_SUBTAB_KEY]) {
-                                    currentVueSubTab = result[LAST_VUE_SUBTAB_KEY];
-                                    vueSubtabBtns.forEach(b => {
-                                        b.classList.toggle('active', b.dataset.subtab === currentVueSubTab);
-                                    });
-                                }
-                            
-                            // 🆕 展开合并脚本
-                            enabledScripts = expandCombinedScripts([...globalEnabledScripts]);
-                            // 初始化合并Hooks数据
-                            updateMergedHooks(enabledScripts);
-                            renderCurrentTab();
-                            
-                            // 检查Vue脚本
-                            const hasVueScript = enabledScripts.includes('Get_Vue_0') ||
-                                enabledScripts.includes('Get_Vue_1');
-                            if (hasVueScript) {
-                                requestVueRouterData();
-                            }
-
-                            // 检查React脚本，先从 storage 读取缓存，再请求实时数据
-                            if (enabledScripts.includes('Get_React_0')) {
-                                const reactStorageKey = `${hostname}_react_data`;
-                                chrome.storage.local.get([reactStorageKey], (storageResult) => {
-                                    if (storageResult[reactStorageKey]) {
-                                        setCachedReactRouterData(storageResult[reactStorageKey]);
-                                        if (currentTab === 'vue' && currentVueSubTab === 'react') {
-                                            displayReactMultipleInstances();
-                                        }
-                                    }
-                                    requestReactRouterData();
-                                });
-                            }
-                        });
-                    } else {
-                        getInitialScripts();
-                    }
-                }, 100);
-
-                // 搜索功能
-                searchInput.addEventListener('input', (e) => {
-                    const searchTerm = e.target.value.toLowerCase();
-                    
-                    if (currentTab === 'antidebug') {
-                    const filteredScripts = getScriptsForCurrentTab().filter(script =>
-                        script.name.toLowerCase().includes(searchTerm) ||
-                        script.description.toLowerCase().includes(searchTerm)
-                    );
-                        renderAntiDebugScripts(filteredScripts);
-                    } else if (currentTab === 'hook') {
-                        // Hook板块：只检索脚本名
-                        let filteredScripts = getScriptsForCurrentTab().filter(script =>
-                            script.name.toLowerCase().includes(searchTerm)
-                        );
-                        // 🆕 应用筛选（已开启/未开启）
-                        filteredScripts = applyHookFilter(filteredScripts);
-                        renderHookScripts(filteredScripts);
-                    }
-                });
-            });
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== "local" || !changes.adb_revision) return;
+        scheduleStateRefresh();
+    });
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+        if (tabId === currentTab_obj?.id && (changeInfo.url || changeInfo.status)) scheduleStateRefresh();
     });
 
     // 🆕 全局模式开关事件监听
@@ -594,51 +345,108 @@ document.addEventListener('DOMContentLoaded', () => {
         handleModeToggle(e.target.checked);
     });
 
-    // 反反Hook检测开关事件监听
     if (antiAntiHookToggle) {
-        antiAntiHookToggle.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                if (!enabledScripts.includes('AntiAnti_Hook')) {
-                    enabledScripts.push('AntiAnti_Hook');
-                }
-            } else {
-                enabledScripts = enabledScripts.filter(id => id !== 'AntiAnti_Hook');
-            }
-            updateStorage(enabledScripts);
-        });
+        antiAntiHookToggle.addEventListener("change", event => setScript("AntiAnti_Hook", event.target.checked));
     }
 
-    // 标签切换事件
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            // 更新按钮状态
-            tabBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            // 更新当前标签
-            currentTab = btn.dataset.tab;
-
-            // 清空搜索
-            searchInput.value = '';
-
-            // 渲染对应内容
-            renderCurrentTab();
-
-            // 保存当前板块到storage
-            chrome.storage.local.set({
-                'last_active_tab': currentTab
-            });
+    function scrollBehavior(preferred = 'smooth') {
+        return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : preferred;
+    }
+    function updateScrollButtons() {
+        previousTabs.disabled = tabScroller.scrollLeft <= 1;
+        nextTabs.disabled = tabScroller.scrollLeft >= tabScroller.scrollWidth - tabScroller.clientWidth - 1;
+    }
+    function syncTabButtons(behavior = 'smooth') {
+        tabBtns.forEach(button => {
+            const selected = button.dataset.tab === currentTab;
+            button.classList.toggle('active', selected);
+            button.setAttribute('aria-selected', String(selected));
+            button.tabIndex = selected ? 0 : -1;
         });
+        requestAnimationFrame(() => {
+            const button = [...tabBtns].find(button => button.dataset.tab === currentTab);
+            if (!button) return;
+            const bounds = tabScroller.getBoundingClientRect();
+            const item = button.getBoundingClientRect();
+            const delta = item.left < bounds.left ? item.left - bounds.left : item.right > bounds.right ? item.right - bounds.right : 0;
+            if (delta) tabScroller.scrollBy({ left: delta, behavior: scrollBehavior(behavior) });
+            updateScrollButtons();
+        });
+    }
+    function selectTab(button) {
+        const opened = currentTab !== button.dataset.tab;
+        currentTab = button.dataset.tab;
+        searchInput.value = '';
+        syncTabButtons();
+        renderCurrentTab();
+        if (opened && currentTab === 'vue') requestActiveRouterData();
+        chrome.storage.local.set({ last_active_tab: currentTab }).catch(error => showToast(error.message));
+    }
+    tabBtns.forEach(button => button.addEventListener('click', () => selectTab(button)));
+    previousTabs.addEventListener('click', () => tabScroller.scrollBy({ left: -tabScroller.clientWidth * .75, behavior: scrollBehavior() }));
+    nextTabs.addEventListener('click', () => tabScroller.scrollBy({ left: tabScroller.clientWidth * .75, behavior: scrollBehavior() }));
+    tabScroller.addEventListener('scroll', updateScrollButtons, { passive: true });
+    new ResizeObserver(() => syncTabButtons('instant')).observe(tabScroller);
+    tabScroller.addEventListener('wheel', event => {
+        if (event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY) || tabScroller.scrollWidth <= tabScroller.clientWidth) return;
+        event.preventDefault();
+        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? tabScroller.clientWidth : 1;
+        tabScroller.scrollLeft += event.deltaY * unit;
+    }, { passive: false });
+    tabScroller.addEventListener('keydown', event => {
+        const index = [...tabBtns].indexOf(event.target);
+        if (index < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabBtns.length - 1
+            : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabBtns.length) % tabBtns.length;
+        selectTab(tabBtns[nextIndex]);
+        tabBtns[nextIndex].focus({ preventScroll: true });
     });
+    // Touch/trackpads use native scrolling; mouse users can drag the same strip.
+    let drag = null;
+    let suppressDragClick = false;
+    tabScroller.addEventListener('pointerdown', event => {
+        if (event.pointerType !== 'mouse' || event.button !== 0) return;
+        drag = { id: event.pointerId, x: event.clientX, scroll: tabScroller.scrollLeft, moved: false };
+        suppressDragClick = false;
+    });
+    tabScroller.addEventListener('pointermove', event => {
+        if (!drag || drag.id !== event.pointerId) return;
+        const distance = event.clientX - drag.x;
+        if (!drag.moved && Math.abs(distance) < 5) return;
+        if (!drag.moved) {
+            drag.moved = true;
+            tabScroller.setPointerCapture(event.pointerId);
+            tabScroller.classList.add('dragging');
+        }
+        event.preventDefault();
+        tabScroller.scrollLeft = drag.scroll - distance;
+    });
+    function endTabDrag(event) {
+        if (!drag || drag.id !== event.pointerId) return;
+        suppressDragClick = drag.moved;
+        drag = null;
+        tabScroller.classList.remove('dragging');
+        if (tabScroller.hasPointerCapture(event.pointerId)) tabScroller.releasePointerCapture(event.pointerId);
+        setTimeout(() => { suppressDragClick = false; }, 0);
+    }
+    window.addEventListener('pointerup', endTabDrag);
+    window.addEventListener('pointercancel', endTabDrag);
+    tabScroller.addEventListener('lostpointercapture', endTabDrag);
+    tabScroller.addEventListener('click', event => {
+        if (suppressDragClick) { event.preventDefault(); event.stopImmediatePropagation(); }
+    }, true);
 
     // Vue/React 子Tab切换事件
     vueSubtabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
+            const opened = currentVueSubTab !== btn.dataset.subtab;
             vueSubtabBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentVueSubTab = btn.dataset.subtab;
             chrome.storage.local.set({ [LAST_VUE_SUBTAB_KEY]: currentVueSubTab });
             renderVueSubTab();
+            if (opened) requestActiveRouterData();
         });
     });
 
@@ -696,6 +504,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // 渲染当前标签的内容
     function renderCurrentTab() {
         const scriptsToShow = getScriptsForCurrentTab();
+        mcpContent.style.display = currentTab === 'mcp' ? 'flex' : 'none';
+        noResults.style.display = 'none';
+        document.querySelector('footer .hint').textContent = currentTab === 'mcp' ? '连接设置保存后即时生效' : '页面刷新后更改生效';
+
+        // Unknown state must not be presented as every saved script being off.
+        // The MCP settings panel remains usable while the background is unavailable.
+        if (!latestState && currentTab !== 'mcp') {
+            scriptsGrid.style.display = 'none';
+            hookContent.style.display = 'none';
+            vueContent.style.display = 'none';
+            searchContainer.style.display = 'none';
+            if (hookNoticeContainer) hookNoticeContainer.style.display = 'none';
+            return;
+        }
 
         if (currentTab === 'antidebug') {
             // 显示反调试板块
@@ -732,6 +554,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 b.classList.toggle('active', b.dataset.subtab === currentVueSubTab);
             });
             renderVueSubTab();
+        } else if (currentTab === 'mcp') {
+            searchContainer.style.display = 'none';
+            searchContainer.classList.remove('hook-search-container');
+            if (hookNoticeContainer) hookNoticeContainer.style.display = 'none';
+            scriptsGrid.style.display = 'none';
+            hookContent.style.display = 'none';
+            vueContent.style.display = 'none';
         }
 
         // 每次渲染后同步反反Hook开关状态
@@ -752,22 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const scripts = allScripts.filter(s => s.category === 'react' && !s.hidden);
             renderReactScripts(scripts);
 
-            const hasReactScript = enabledScripts.includes('Get_React_0');
-
-            // 优先用内存缓存，无缓存则从 storage 读取（background 已存储时可直接展示）
-            if (cachedReactData) {
-                displayReactMultipleInstances();
-                if (hasReactScript) requestReactRouterData();
-            } else {
-                const reactStorageKey = `${hostname}_react_data`;
-                chrome.storage.local.get([reactStorageKey], (storageResult) => {
-                    if (storageResult[reactStorageKey]) {
-                        setCachedReactRouterData(storageResult[reactStorageKey]);
-                    }
-                    displayReactMultipleInstances();
-                    if (hasReactScript) requestReactRouterData();
-                });
-            }
+            displayReactMultipleInstances();
         }
     }
 
@@ -1053,41 +867,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isFixedVariate = script.fixed_variate === 1;
                 const hasParam = script.has_Param === 1;
                 
-                // 如果脚本已启用，确保配置正确初始化
-                if (isEnabled && !isFixedVariate) {
-                    if (hasParam) {
-                        // has_Param=1：必须创建param（即使为空数组）和flag
-                        if (config.param === undefined) {
-                            config.param = [];
-                        }
-                        // 🔧 新增：初始化关键字检索开关（默认为关闭，即 false）
-                        if (config.keyword_filter_enabled === undefined) {
-                            config.keyword_filter_enabled = false;
-                        }
-                        // 🔧 修改：如果开关关闭，强制 flag=0；如果开关开启，根据关键字数量设置 flag
-                        if (config.flag === undefined) {
-                            if (config.keyword_filter_enabled) {
-                                config.flag = config.param.length > 0 ? 1 : 0;
-                            } else {
-                                config.flag = 0; // 开关关闭时，flag 必须为 0
-                                // 🔧 修复：不清空关键字，保留存储的关键字
-                            }
-                        } else if (!config.keyword_filter_enabled) {
-                            // 🔧 修复：如果开关关闭，只设置 flag=0，不清空存储的关键字
-                            config.flag = 0;
-                        }
-                        if (Object.keys(config).length > 0) {
-                            saveHookConfig(script.id, config);
-                        }
-                    } else {
-                        // has_Param=0：必须创建flag=0
-                        if (config.flag === undefined) {
-                            config.flag = 0;
-                            saveHookConfig(script.id, config);
-                        }
-                    }
-                }
-                
+                // Rendering is read-only; configuration defaults are owned by the background service.
                 const scriptItem = createHookScriptItem(script, isEnabled, isFixedVariate, hasParam, config);
                 hookContent.appendChild(scriptItem);
             });
@@ -1115,13 +895,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isFixedVariate) {
             // 固定变量脚本：显示固定值输入
             // 优先使用配置中的值，如果没有则使用scripts.json中的默认值
-            const value = config?.value || script.value || '';
+            const value = config?.value ?? script.value ?? '';
             inputArea = `
                 <div class="hook-input-group">
                     <label class="hook-input-label">固定值：</label>
                     <div class="hook-input-wrapper hook-value-input-wrapper">
                         <input type="text" class="hook-value-input" 
-                               value="${value}" 
+                               value="${escapeHtml(value)}" 
                                placeholder="输入固定值后按Enter保存" 
                                ${!isEnabled ? 'disabled' : ''}>
                         <div class="hook-value-tooltip">输入固定值后按Enter保存</div>
@@ -1146,7 +926,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const keywordList = keywords.map((kw, idx) => `
                     <div class="keyword-item">
-                        <span>${kw}</span>
+                        <span>${escapeHtml(kw)}</span>
                         <button class="keyword-remove-btn" data-index="${idx}" ${!isEnabled || !keywordFilterEnabled ? 'disabled' : ''}>×</button>
                     </div>
                 `).join('');
@@ -1236,17 +1016,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 inputWrapper.classList.remove('show-tooltip');
             });
             
-            valueInput.addEventListener('keypress', (e) => {
+            valueInput.addEventListener('keypress', async (e) => {
                 if (e.key === 'Enter' && isEnabled) {
                     const value = e.target.value.trim();
                     if (value) {
                         // 保存固定值
-                        saveHookConfigValue(script.id, value);
-                        showToast('已保存');
+                        const result = await saveHookConfigValue(script.id, value);
+                        if (result?.saved) showToast('已保存，刷新页面后生效');
                     } else {
                         // 如果输入为空，清空固定值
-                        saveHookConfigValue(script.id, '');
-                        showToast('已清空');
+                        const result = await saveHookConfigValue(script.id, '');
+                        if (result?.saved) showToast('已清空，刷新页面后生效');
                     }
                 }
             });
@@ -1317,23 +1097,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // 保存Hook脚本配置
-    function saveHookConfig(scriptId, config) {
-        const configKey = `${scriptId}_config`;
-        chrome.storage.local.set({
-            [configKey]: config
-        }, () => {
-            // 🔧 修改：用户修改配置时只保存到chrome.storage.local，不发送消息
-            // 等下次刷新页面后，content.js会在页面加载时自动同步并发送消息
-        });
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[character]);
     }
-    
+
+    // Configuration rules and persistence are shared with MCP in the background service.
+    function saveHookConfig(scriptId, config) {
+        const { flag, ...patch } = config;
+        return writeCommand("hooks.set", { tabId: currentTab_obj?.id, scriptId, patch, apply: "next_navigation" });
+    }
+
     // 保存固定值
     function saveHookConfigValue(scriptId, value) {
-        loadHookConfig(scriptId).then(config => {
-            config.value = value;
-            saveHookConfig(scriptId, config);
-        });
+        return saveHookConfig(scriptId, { value });
     }
     
     // 🔧 新增：处理关键字检索开关切换
@@ -1352,7 +1130,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 config.flag = config.param.length > 0 ? 1 : 0;
             }
             
-            saveHookConfig(scriptId, config);
+            saveHookConfig(scriptId, { keyword_filter_enabled: enabled });
             
             // 更新UI状态
             const keywordsContainer = scriptItem.querySelector('.hook-keywords-container');
@@ -1377,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const keywordItem = document.createElement('div');
                     keywordItem.className = 'keyword-item';
                     keywordItem.innerHTML = `
-                        <span>${kw}</span>
+                        <span>${escapeHtml(kw)}</span>
                         <button class="keyword-remove-btn" data-index="${idx}" ${!isEnabled ? 'disabled' : ''}>×</button>
                     `;
                     inputWrapper.parentNode.insertBefore(keywordItem, inputWrapper);
@@ -1422,13 +1200,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 config.param.push(keyword);
                 // 🔧 修改：根据关键字数量设置 flag
                 config.flag = config.param.length > 0 ? 1 : 0;
-                saveHookConfig(scriptId, config);
+                saveHookConfig(scriptId, { param: config.param });
                 
                 // 更新UI
                 const keywordItem = document.createElement('div');
                 keywordItem.className = 'keyword-item';
                 keywordItem.innerHTML = `
-                    <span>${keyword}</span>
+                    <span>${escapeHtml(keyword)}</span>
                     <button class="keyword-remove-btn" data-index="${config.param.length - 1}" ${!isEnabled ? 'disabled' : ''}>×</button>
                 `;
                 const inputWrapper = container.querySelector('.hook-input-wrapper');
@@ -1464,7 +1242,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     config.flag = 1; // 还有关键字时保持 flag=1
                 }
-                saveHookConfig(scriptId, config);
+                saveHookConfig(scriptId, { param: config.param });
                 
                 // 重新渲染关键字列表
                 const keywordItems = container.querySelectorAll('.keyword-item');
@@ -1482,7 +1260,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function toggleHookSwitch(scriptId, switchKey, value, buttonElement) {
         loadHookConfig(scriptId).then(config => {
             config[switchKey] = value;
-            saveHookConfig(scriptId, config);
+            saveHookConfig(scriptId, { [switchKey]: value });
             
             // 更新UI
             if (value === 1) {
@@ -1493,174 +1271,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // 处理Hook脚本开关切换
-    function handleHookScriptToggle(script, isChecked, scriptItem) {
-        if (isChecked) {
-            if (!enabledScripts.includes(script.id)) {
-                enabledScripts.push(script.id);
-            }
-            scriptItem.classList.add('enabled');
-            scriptItem.classList.remove('disabled');
-            
-            // 初始化配置（如果不存在）
-            loadHookConfig(script.id).then(config => {
-                const isFixedVariate = script.fixed_variate === 1;
-                const hasParam = script.has_Param === 1;
-                
-                // 固定变量脚本：如果配置中没有值，使用scripts.json中的默认值
-                if (isFixedVariate) {
-                    // 检查scripts.json中是否有默认值
-                    if (script.value !== undefined && script.value !== null) {
-                        // 如果配置中没有保存的值，使用默认值
-                        if (config.value === undefined || config.value === '') {
-                            config.value = script.value;
-                            saveHookConfig(script.id, config);
-                            
-                            // 更新输入框显示
-                            const valueInput = scriptItem.querySelector('.hook-value-input');
-                            if (valueInput) {
-                                valueInput.value = script.value;
-                            }
-                        }
-                    }
-                } else {
-                    // 非固定变量脚本：确保flag和param存在
-                    if (hasParam) {
-                        // has_Param=1：必须创建param（即使为空数组）和flag
-                        if (config.param === undefined) {
-                            config.param = [];
-                        }
-                        // 🔧 新增：初始化关键字检索开关（默认为关闭，即 false）
-                        if (config.keyword_filter_enabled === undefined) {
-                            config.keyword_filter_enabled = false;
-                        }
-                        // 🔧 修改：如果开关关闭，强制 flag=0；如果开关开启，根据关键字数量设置 flag
-                        if (config.flag === undefined) {
-                            if (config.keyword_filter_enabled) {
-                                config.flag = config.param.length > 0 ? 1 : 0;
-                            } else {
-                                config.flag = 0; // 开关关闭时，flag 必须为 0
-                                // 🔧 修复：不清空关键字，保留存储的关键字
-                            }
-                        } else if (!config.keyword_filter_enabled) {
-                            // 🔧 修复：如果开关关闭，只设置 flag=0，不清空存储的关键字
-                            config.flag = 0;
-                        }
-                    } else {
-                        // has_Param=0：必须创建flag=0，不创建param
-                        if (config.flag === undefined) {
-                            config.flag = 0;
-                        }
-                    }
-                    saveHookConfig(script.id, config);
-                }
-                
-                // 🔧 修改：根据关键字检索开关状态启用/禁用控件
-                if (hasParam && !isFixedVariate) {
-                    const keywordFilterEnabled = config?.keyword_filter_enabled !== undefined ? config.keyword_filter_enabled : false;
-                    const keywordInput = scriptItem.querySelector('.hook-keyword-input');
-                    const keywordRemoveBtns = scriptItem.querySelectorAll('.keyword-remove-btn');
-                    const keywordsContainer = scriptItem.querySelector('.hook-keywords-container');
-                    
-                    if (keywordFilterEnabled) {
-                        // 开启：启用关键字输入框和删除按钮
-                        if (keywordInput) keywordInput.disabled = false;
-                        keywordRemoveBtns.forEach(btn => {
-                            btn.disabled = false;
-                        });
-                        if (keywordsContainer) keywordsContainer.classList.remove('keyword-filter-disabled');
-                    } else {
-                        // 关闭：禁用关键字输入框和删除按钮
-                        if (keywordInput) keywordInput.disabled = true;
-                        keywordRemoveBtns.forEach(btn => {
-                            btn.disabled = true;
-                        });
-                        if (keywordsContainer) keywordsContainer.classList.add('keyword-filter-disabled');
-                    }
-                } else {
-                    // 其他控件正常启用
-                    scriptItem.querySelectorAll('input:not(.hook-keyword-input), button:not(.keyword-remove-btn)').forEach(el => {
-                        el.disabled = false;
-                    });
-                }
-                
-                // 🔧 修改：用户修改配置时只保存到chrome.storage.local，不发送消息
-                // 等下次刷新页面后，content.js会在页面加载时自动同步并发送消息
-            });
-        } else {
-            enabledScripts = enabledScripts.filter(id => id !== script.id);
-            scriptItem.classList.remove('enabled');
-            scriptItem.classList.add('disabled');
-            
-            // 禁用所有控件（除了主开关）
-            scriptItem.querySelectorAll('input:not([type="checkbox"]), button:not(.hook-main-switch input)').forEach(el => {
-                el.disabled = true;
-            });
-        }
-        
-        updateStorage(enabledScripts);
-        
-        // 🆕 如果当前有筛选状态，重新渲染Hook脚本列表以应用筛选
-        if (currentTab === 'hook' && hookFilterState) {
-            const scriptsToShow = getScriptsForCurrentTab();
-            renderHookScripts(scriptsToShow);
-        }
-    }
-    
-    // 同步Hook配置到页面localStorage
-    function syncHookConfigToPage(scriptId, config) {
-        if (!currentTab_obj || !currentTab_obj.id) return;
-        
-        // 获取脚本信息以判断类型
-        const script = allScripts.find(s => s.id === scriptId);
-        if (!script) return;
-        
-        const scriptName = scriptId; // 脚本文件名
-        const baseKey = `Antidebug_breaker_${scriptName}`;
-        
-        // 构建要同步的localStorage数据
-        const localStorageData = {};
-        
-        const isFixedVariate = script.fixed_variate === 1;
-        const hasParam = script.has_Param === 1;
-        
-        // 固定变量脚本
-        if (isFixedVariate) {
-            if (config.value !== undefined) {
-                localStorageData[`${baseKey}_value`] = config.value;
-            }
-        } else {
-            // 非固定变量脚本
-            // has_Param=0：必须创建flag=0
-            // has_Param=1：必须创建flag和param（即使为空数组）
-            if (hasParam) {
-                // 必须创建param（即使为空数组）
-                localStorageData[`${baseKey}_param`] = JSON.stringify(config.param || []);
-                // 必须创建flag
-                localStorageData[`${baseKey}_flag`] = (config.flag !== undefined ? config.flag : (config.param && config.param.length > 0 ? 1 : 0)).toString();
-            } else {
-                // has_Param=0：必须创建flag=0
-                localStorageData[`${baseKey}_flag`] = '0';
-            }
-        }
-        
-        // 动态开关（debugger, stack等）
-        Object.keys(config).forEach(key => {
-            // 🔧 修改：排除 keyword_filter_enabled，它只是插件UI的控制开关，不需要同步到页面
-            if (!['value', 'flag', 'param', 'keyword_filter_enabled'].includes(key)) {
-                localStorageData[`${baseKey}_${key}`] = (config[key] || 0).toString();
-            }
-        });
-        
-        // 发送消息到content script同步
-        chrome.tabs.sendMessage(currentTab_obj.id, {
-            type: 'SYNC_HOOK_CONFIG',
-            scriptId: scriptId,
-            config: localStorageData
-        }).catch(err => {
-            console.warn('同步Hook配置失败:', err);
-        });
-    }
+    function handleHookScriptToggle(script, checked) { return setScript(script.id, checked); }
 
     // 显示多个Vue实例（新增函数）
     function displayMultipleInstances() {
@@ -2626,163 +2237,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // 🆕 处理反调试脚本开关切换（支持全局模式）
-    function handleScriptToggle(scriptId, isChecked, scriptItem) {
-        if (typeof scriptId !== 'string' || !scriptId.trim()) {
-            console.error('Invalid script ID in change event:', scriptId);
-            return;
-        }
-
-        if (isChecked) {
-            if (!enabledScripts.includes(scriptId)) {
-                enabledScripts.push(scriptId);
-                scriptItem.classList.add('active');
-            }
-        } else {
-            enabledScripts = enabledScripts.filter(id => id !== scriptId);
-            scriptItem.classList.remove('active');
-        }
-
-        updateStorage(enabledScripts);
-    }
-
-    // 🆕 处理Vue脚本开关切换（含父子逻辑，支持全局模式）
-    function handleVueScriptToggle(script, isChecked) {
-        // 如果是父脚本
-        if (!script.parentScript) {
-            if (isChecked) {
-                // 开启父脚本：添加父脚本ID
-                if (!enabledScripts.includes(script.id)) {
-                    enabledScripts.push(script.id);
-                }
-            } else {
-                // 关闭父脚本：同时移除父脚本和所有子脚本
-                const childScripts = allScripts.filter(s => s.parentScript === script.id);
-                enabledScripts = enabledScripts.filter(id => {
-                    if (id === script.id) return false;
-                    if (childScripts.some(child => child.id === id)) return false;
-                    return true;
-                });
-            }
-        }
-        // 如果是子脚本
-        else {
-            if (isChecked) {
-                // 开启子脚本：移除父脚本，只保留子脚本
-                enabledScripts = enabledScripts.filter(id => id !== script.parentScript);
-                if (!enabledScripts.includes(script.id)) {
-                    enabledScripts.push(script.id);
-                }
-            } else {
-                // 关闭子脚本：移除子脚本，恢复父脚本
-                enabledScripts = enabledScripts.filter(id => id !== script.id);
-                if (!enabledScripts.includes(script.parentScript)) {
-                    enabledScripts.push(script.parentScript);
-                }
-            }
-        }
-
-        updateStorage(enabledScripts);
-    }
-
-    // 🆕 脚本组合检测函数：将独立脚本合并为组合脚本
-    function combineCombinableScripts(scriptIds) {
-        const combined = [...scriptIds];
-        
-        // 检测是否同时存在 Hook_SMcrypto 和 Hook_JSEncrypt
-        const hasSM = combined.includes('Hook_SMcrypto');
-        const hasJSE = combined.includes('Hook_JSEncrypt');
-        const hasCombined = combined.includes('Hook_JSEncrypt_SMcrypto');
-        
-        if (hasSM && hasJSE && !hasCombined) {
-            // 同时存在两个独立脚本，且不存在合并脚本
-            // 移除两个独立脚本
-            const smIndex = combined.indexOf('Hook_SMcrypto');
-            const jseIndex = combined.indexOf('Hook_JSEncrypt');
-            
-            // 从后往前删除，避免索引变化
-            if (smIndex > jseIndex) {
-                combined.splice(smIndex, 1);
-                combined.splice(jseIndex, 1);
-            } else {
-                combined.splice(jseIndex, 1);
-                combined.splice(smIndex, 1);
-            }
-            
-            // 添加合并脚本
-            combined.push('Hook_JSEncrypt_SMcrypto');
-        } else if (!hasSM && !hasJSE && hasCombined) {
-            // 两个独立脚本都不存在了，移除合并脚本
-            const combinedIndex = combined.indexOf('Hook_JSEncrypt_SMcrypto');
-            combined.splice(combinedIndex, 1);
-        } else if ((hasSM && !hasJSE) || (!hasSM && hasJSE)) {
-            // 只有一个独立脚本存在，需要移除合并脚本（如果有）
-            const combinedIndex = combined.indexOf('Hook_JSEncrypt_SMcrypto');
-            if (combinedIndex !== -1) {
-                combined.splice(combinedIndex, 1);
-            }
-        }
-        
-        return combined;
-    }
-
-    // 🆕 统一的存储更新函数（支持全局模式）
-    function updateStorage(enabled) {
-        // 🆕 检测并合并脚本组合
-        const scriptsToStore = combineCombinableScripts(enabled);
-
-        // 更新合并Hooks数据（传入展开后的完整列表）
-        updateMergedHooks(enabled);
-        
-        if (isGlobalMode) {
-            // 全局模式：更新全局脚本列表
-            globalEnabledScripts = [...scriptsToStore];
-            chrome.storage.local.set({
-                [GLOBAL_SCRIPTS_KEY]: scriptsToStore
-            }, () => {
-                // 通知后台更新脚本注册（全局模式）
-                chrome.runtime.sendMessage({
-                    type: 'update_scripts_registration',
-                    hostname: '*',
-                    enabledScripts: scriptsToStore,
-                    isGlobalMode: true
-                });
-
-                // 通知标签页更新状态
-                chrome.tabs.sendMessage(currentTab_obj.id, {
-                    type: 'scripts_updated',
-                    hostname: hostname,
-                    enabledScripts: scriptsToStore
-                });
-
-                // 更新本地状态并重新渲染
-                enabledScripts = enabled; // 保持UI状态为展开的
-                renderCurrentTab();
-            });
-        } else {
-            // 标准模式：更新当前域名配置
-            chrome.storage.local.set({
-                [hostname]: scriptsToStore
-            }, () => {
-                // 通知后台更新脚本注册（标准模式）
-                chrome.runtime.sendMessage({
-                    type: 'update_scripts_registration',
-                    hostname: hostname,
-                    enabledScripts: scriptsToStore,
-                    isGlobalMode: false
-                });
-
-                // 通知标签页更新状态
-                chrome.tabs.sendMessage(currentTab_obj.id, {
-                    type: 'scripts_updated',
-                    hostname: hostname,
-                    enabledScripts: scriptsToStore
-                });
-
-                // 更新本地状态并重新渲染
-                enabledScripts = enabled; // 保持UI状态为展开的
-                renderCurrentTab();
-            });
-        }
-    }
+    function handleScriptToggle(scriptId, checked) { return setScript(scriptId, checked); }
+    function handleVueScriptToggle(script, checked) { return setScript(script.id, checked); }
 });

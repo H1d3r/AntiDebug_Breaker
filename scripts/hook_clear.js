@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_clear")) {
 // ==UserScript==
 // @name         hook_clear
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -14,3 +16,7 @@
 
     console.clear = function() {};
 })();
+
+window.__ADB_OBSERVER__?.installed("hook_clear");
+
+}

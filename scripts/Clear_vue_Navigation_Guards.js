@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("Clear_vue_Navigation_Guards")) {
 // ==UserScript==
 // @name         Clear_vue_Navigation_Guards
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -57,3 +59,6 @@
         return temp_push.call(this, ...arguments); // 将网站js调用目标方法时所传入的内容传给原方法执行并返回结果
     }
 })();
+window.__ADB_OBSERVER__?.installed("Clear_vue_Navigation_Guards");
+
+}

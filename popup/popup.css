@@ -21,10 +21,26 @@
     font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', sans-serif;
 }
 
+/* Give Chrome's action popup a definite preferred size; overflowing tabs must
+   never participate in sizing the outer browser window. */
+html {
+    width: 500px;
+    max-width: 500px;
+    height: 600px;
+    overflow: hidden;
+}
+
+/* Only panels scroll. Do not reserve an outer scrollbar in popup autosizing. */
+html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
 body {
     background: linear-gradient(135deg, var(--background) 0%, #07162b 100%);
     color: var(--on-surface);
+    width: 500px;
     min-width: 500px;
+    max-width: 500px;
+    /* Chrome may limit popup height when the browser window is short. */
+    height: 100vh;
     max-height: 600px;
     padding: 20px;
     overflow: hidden;
@@ -36,6 +52,32 @@ body {
     gap: 15px;
     padding: 0 5px;
     position: relative;
+    height: 100%;
+    max-height: 560px;
+    min-width: 0;
+}
+
+header, footer { flex-shrink: 0; }
+.state-notice {
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid #8f444b;
+    border-radius: 8px;
+    background: #34232d;
+    color: #ffc2c2;
+    font-size: 12px;
+    line-height: 1.45;
+}
+.state-notice[hidden], .state-notice [hidden] { display: none; }
+.state-notice summary { cursor: pointer; margin-top: 4px; }
+.state-notice summary:focus-visible { outline: 2px solid var(--primary-light); outline-offset: 2px; }
+#state-notice-errors { max-height: 90px; overflow-y: auto; margin-top: 5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.scripts-grid, .hook-content, .vue-content, .mcp-content {
+    flex: 1 1 0;
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
 }
 
 header {
@@ -92,16 +134,51 @@ h1 {
 }
 
 /* 标签切换样式 */
-.tabs-container {
+.tabs-navigation {
     display: flex;
-    gap: 8px;
-    padding: 0 5px;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
     margin-top: -5px;
 }
 
-.tab-btn {
+.tabs-container {
+    display: flex;
     flex: 1;
-    padding: 10px 20px;
+    min-width: 0;
+    gap: 8px;
+    padding: 4px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    user-select: none;
+}
+
+.tabs-container::-webkit-scrollbar { display: none; }
+.tabs-container.dragging, .tabs-container.dragging .tab-btn { cursor: grabbing; }
+
+.tab-scroll-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 26px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--on-surface-secondary);
+    background: var(--surface);
+    cursor: pointer;
+}
+.tab-scroll-btn:hover:not(:disabled) { color: var(--on-surface); border-color: var(--primary); }
+.tab-scroll-btn:disabled { opacity: .3; cursor: default; }
+.tab-scroll-btn:focus-visible, .tab-btn:focus-visible { outline: 2px solid var(--primary-light); outline-offset: -3px; }
+
+.tab-btn {
+    flex: 0 0 calc((100% - 16px) / 3);
+    min-width: 112px;
+    padding: 10px 14px;
+    white-space: nowrap;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -2117,6 +2194,10 @@ footer {
     position: fixed;
     bottom: 20px;
     left: 50%;
+    width: max-content;
+    max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
     transform: translateX(-50%) translateY(100px);
     background: var(--surface-light);
     color: var(--on-surface);
@@ -2133,10 +2214,13 @@ footer {
 .toast.show {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
 }
 
 .toast-message {
     font-size: 14px;
     font-weight: 500;
-    white-space: nowrap;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }

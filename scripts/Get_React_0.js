@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
 ﻿// ==UserScript==
 // @name         Get_React
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -122,11 +124,13 @@
     }
 
     // ===== 发送数据到插件 =====
+    let adbRequestId = null;
     function sendToExtension(data) {
         try {
             window.postMessage({
                 type: 'REACT_ROUTER_DATA',
                 source: 'get-react-script',
+                requestId: adbRequestId,
                 data: data
             }, '*');
         } catch (error) {
@@ -136,6 +140,7 @@
                     window.postMessage({
                         type: 'REACT_ROUTER_DATA',
                         source: 'get-react-script',
+                requestId: adbRequestId,
                         data: {
                             serializationError: true,
                             errorType: 'DataCloneError',
@@ -182,6 +187,9 @@
         }
 
         if (event.data.type === 'REQUEST_REACT_ROUTER_DATA') {
+                adbRequestId = typeof event.data.requestId === "string" ? event.data.requestId : null;
+                if (document.body) tryGetRouter();
+
             if (cachedResult) {
                 sendToExtension(cachedResult);
             } else {
@@ -2709,3 +2717,7 @@
     init();
 
 })();
+
+window.__ADB_OBSERVER__?.installed("Get_React_0");
+
+}

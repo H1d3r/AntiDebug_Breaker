@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_log")) {
 // ==UserScript==
 // @name         hook log
 // @namespace    http://tampermonkey.net/
@@ -41,3 +43,6 @@
         }
     });
 })();
+window.__ADB_OBSERVER__?.installed("hook_log");
+
+}

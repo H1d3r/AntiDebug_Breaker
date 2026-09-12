@@ -1,0 +1,87 @@
+/* Styles for the MCP panel and its prompt dialog. */
+.mcp-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 0 5px 4px;
+    scrollbar-gutter: stable;
+}
+.mcp-content > * { flex-shrink: 0; }
+.mcp-content h2 { font-size: 17px; font-weight: 650; }
+.mcp-content .mcp-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mcp-content .mcp-heading-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.mcp-content .mcp-download-link { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--primary-light); font-size: 12px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.mcp-content .mcp-download-link:hover { color: var(--on-surface); border-color: var(--primary-light); background: var(--surface-light); }
+.mcp-content .mcp-download-link:focus-visible { outline: 2px solid var(--primary-light); outline-offset: 2px; }
+.mcp-content .mcp-download-link[aria-disabled=true] { opacity: .6; cursor: default; }
+.mcp-content #mcp-download-version { margin-top: 8px; font-size: 11px; color: var(--on-surface-secondary); overflow-wrap: anywhere; }
+.mcp-content #mcp-download-feedback { font-size: 11px; color: #ffb4b4; overflow-wrap: anywhere; }
+.mcp-content #mcp-download-feedback[hidden] { display: none; }
+.mcp-content p, .mcp-content li { line-height: 1.6; }
+.mcp-content .status-box { background: var(--surface); border: 1px solid var(--border); padding: 10px 12px; border-radius: 8px; font-size: 12px; }
+.mcp-content .status-box p { margin: 5px 0 0 16px; font-size: 11px; color: var(--on-surface-secondary); overflow-wrap: anywhere; }
+.mcp-content .dot { display: inline-block; width: 7px; height: 7px; background: #8391a5; border-radius: 50%; margin-right: 9px; }
+.mcp-content .dot.connecting { background: #f4b84a; box-shadow: 0 0 6px #f4b84a80; animation: mcp-connecting-pulse 1.2s ease-in-out infinite; }
+.mcp-content .dot.connected { background: #60d6ad; }
+.mcp-content .dot.error { background: #ff947c; }
+@keyframes mcp-connecting-pulse {
+    0%, 100% { opacity: .25; }
+    50% { opacity: 1; }
+}
+.mcp-content form { display: flex; flex-direction: column; gap: 7px; }
+.mcp-content label { font-size: 12px; font-weight: 600; margin-top: 3px; }
+.mcp-content input:not([type=checkbox]) { border: 1px solid var(--border); border-radius: 7px; padding: 9px 10px; background: var(--surface); color: var(--on-surface); width: 100%; min-width: 0; font-size: 12px; }
+.mcp-content input:focus-visible, .mcp-content button:focus-visible, .mcp-content summary:focus-visible { outline: 2px solid var(--primary-light); outline-offset: 2px; }
+.mcp-content .field-hint { font-size: 11px; color: var(--on-surface-secondary); }
+.mcp-content button { padding: 9px 14px; border: 1px solid var(--primary-light); border-radius: 7px; color: white; background: var(--primary); font-size: 12px; font-weight: 600; cursor: pointer; }
+.mcp-content button:hover { background: var(--primary-dark); }
+.mcp-content button:disabled { opacity: .6; cursor: wait; }
+.mcp-content #mcp-prompts-open { flex-shrink: 0; padding: 5px 11px; color: var(--primary-light); border-color: var(--border); background: var(--surface); }
+.mcp-content #mcp-prompts-open:hover { color: var(--on-surface); border-color: var(--primary-light); background: var(--surface-light); }
+.mcp-content #feedback { min-height: 17px; font-size: 11px; color: #9fddc8; overflow-wrap: anywhere; }
+.mcp-content .connection-actions { display: flex; justify-content: flex-end; }
+.mcp-content .connection-actions[hidden] { display: none; }
+.mcp-content .connection-actions button { width: 100%; color: white; border-color: #e45b68; background: #c93642; }
+.mcp-content .connection-actions button:hover { border-color: #e45b68; background: #a82430; }
+.mcp-content #browser-permission-status { font-size: 11px; color: var(--on-surface); }
+.mcp-content .instructions { border-top: 1px solid var(--border); padding-top: 10px; font-size: 11px; color: var(--on-surface-secondary); }
+.mcp-content summary { color: var(--on-surface); font-size: 12px; cursor: pointer; }
+.mcp-content ol { padding-left: 20px; margin-top: 10px; }
+.mcp-content li { margin-bottom: 8px; }
+.mcp-content code { overflow-wrap: anywhere; color: var(--on-surface); }
+
+/* The modal stays within the action popup and never affects its preferred size. */
+.mcp-prompts-dialog {
+    width: 440px;
+    max-width: calc(100% - 40px);
+    max-height: calc(100% - 40px);
+    margin: auto;
+    padding: 18px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--background);
+    color: var(--on-surface);
+    box-shadow: 0 16px 48px #0008;
+}
+.mcp-prompts-dialog::backdrop { background: #020b19b3; }
+.mcp-prompts-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mcp-prompts-heading h2 { font-size: 17px; font-weight: 650; }
+.mcp-prompts-dialog button { padding: 7px 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--on-surface-secondary); font-size: 12px; font-weight: 600; cursor: pointer; }
+.mcp-prompts-dialog button:hover { background: var(--surface-light); color: var(--on-surface); }
+.mcp-prompts-dialog button:focus-visible, .mcp-prompts-dialog textarea:focus-visible { outline: 2px solid var(--primary-light); outline-offset: 2px; }
+.mcp-prompts-dialog button:disabled { opacity: .6; cursor: wait; }
+.mcp-prompts-dialog p { font-size: 11px; line-height: 1.6; color: var(--on-surface-secondary); }
+.mcp-prompts-dialog #mcp-prompts-help { margin: 12px 0; }
+.mcp-prompt-options { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.mcp-prompt-options button { flex: 1 0 auto; }
+.mcp-prompt-options button[aria-pressed="true"] { border-color: var(--primary-light); background: var(--surface-light); color: var(--on-surface); }
+.mcp-prompts-dialog textarea { display: block; width: 100%; height: 210px; min-height: 120px; max-height: 40vh; resize: vertical; padding: 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--on-surface); font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
+.mcp-prompts-dialog #mcp-prompt-note { margin-top: 9px; }
+.mcp-prompts-dialog #mcp-prompt-note[hidden] { display: none; }
+.mcp-prompt-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.mcp-prompts-dialog #mcp-prompt-feedback { color: #9fddc8; overflow-wrap: anywhere; }
+.mcp-prompts-dialog #mcp-prompt-copy { flex-shrink: 0; margin-left: auto; border-color: var(--primary-light); background: var(--primary); color: white; }
+.mcp-prompts-dialog #mcp-prompt-copy:hover { background: var(--primary-dark); }

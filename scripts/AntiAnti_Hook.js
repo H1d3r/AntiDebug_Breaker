@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("AntiAnti_Hook")) {
 // ==UserScript==
 // @name         AntiAnti_Hook
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -16,7 +18,9 @@
         localStorage.removeItem("Antidebug_breaker_Hooks");
     }
 
+    let adbInitialized = false;
     function initHook() {
+        if (adbInitialized || window.__ADB_OBSERVER__?.isInstalled?.("AntiAnti_Hook")) return;
         const hooksData = localStorage.getItem('Antidebug_breaker_Hooks');
         if (!hooksData) return;
 
@@ -171,6 +175,8 @@
         }
 
         clear_Antidebug();
+        adbInitialized = true;
+        window.__ADB_OBSERVER__?.installed(SCRIPT_ID);
     }
 
     const SCRIPT_ID = 'AntiAnti_Hook';
@@ -198,3 +204,4 @@
     setupConfigListener();
 
 })();
+}

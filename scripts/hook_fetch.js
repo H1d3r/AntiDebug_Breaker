@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_fetch")) {
 // ==UserScript==
 // @name         Hook_fetch
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -20,7 +22,9 @@
         localStorage.removeItem("Antidebug_breaker_" + id + "_stack");
     }
 
+    let adbInitialized = false;
     function initHook() {
+        if (adbInitialized || window.__ADB_OBSERVER__?.isInstalled?.("hook_fetch")) return;
         let flag = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_flag");
         let is_debugger = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_debugger");
         let is_stack = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_stack");
@@ -33,6 +37,7 @@
                 for (let i = 0; i < arguments.length; i++) {
                     console.log(arguments[i]);
                 }
+                window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                 if (is_debugger === "1") {
                     debugger;
                 }
@@ -45,6 +50,8 @@
 
         window.fetch.__proto__ = temp_fetch.__proto__;
         clear_Antidebug(SCRIPT_ID);
+        adbInitialized = true;
+        window.__ADB_OBSERVER__?.installed(SCRIPT_ID);
     }
 
     function setupConfigListener() {
@@ -69,3 +76,4 @@
     // 立即设置监听器
     setupConfigListener();
 })();
+}

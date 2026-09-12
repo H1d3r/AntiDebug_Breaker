@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AntiDebug Breaker</title>
     <link rel="stylesheet" href="popup.css">
+    <link rel="stylesheet" href="mcp.css">
 </head>
 
 <body>
@@ -35,7 +36,7 @@
                         <div class="antiantiHook-switch-container">
                             <span class="antiantiHook-text">反Hook检测</span>
                             <label class="mode-switch">
-                                <input type="checkbox" id="antiantiHook-toggle">
+                                <input type="checkbox" id="antiantiHook-toggle" disabled>
                                 <span class="mode-slider"></span>
                             </label>
                             <div class="antiantiHook-tooltip">
@@ -47,7 +48,7 @@
                         <div class="mode-switch-container">
                             <span class="mode-text">标准模式</span>
                             <label class="mode-switch">
-                                <input type="checkbox" id="global-mode-toggle">
+                    <input type="checkbox" id="global-mode-toggle" disabled>
                                 <span class="mode-slider"></span>
                             </label>
                             <div class="mode-tooltip">
@@ -74,11 +75,20 @@
             </div>
 
             <!-- 标签切换栏 -->
-            <div class="tabs-container">
-                <button class="tab-btn active" data-tab="antidebug">AntiDebug</button>
-                <button class="tab-btn" data-tab="hook">Hook</button>
-                <button class="tab-btn" data-tab="vue">Vue/React</button>
-            </div>
+            <nav class="tabs-navigation" aria-label="功能板块">
+                <button class="tab-scroll-btn" id="tabs-previous" type="button" aria-label="向左滑动板块" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+                <div class="tabs-container" role="tablist" aria-label="选择功能板块">
+                    <button class="tab-btn active" id="tab-antidebug" role="tab" aria-selected="true" aria-controls="panel-antidebug" data-tab="antidebug">AntiDebug</button>
+                    <button class="tab-btn" id="tab-hook" role="tab" aria-selected="false" aria-controls="panel-hook" tabindex="-1" data-tab="hook">Hook</button>
+                    <button class="tab-btn" id="tab-vue" role="tab" aria-selected="false" aria-controls="panel-vue" tabindex="-1" data-tab="vue">Vue/React</button>
+                    <button class="tab-btn" id="tab-mcp" role="tab" aria-selected="false" aria-controls="panel-mcp" tabindex="-1" data-tab="mcp">MCP</button>
+                </div>
+                <button class="tab-scroll-btn" id="tabs-next" type="button" aria-label="向右滑动板块">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>
+                </button>
+            </nav>
 
             <!-- 搜索栏（仅反调试板块显示） -->
             <div class="search-container">
@@ -110,18 +120,26 @@
             </div>
         </header>
 
+        <aside class="state-notice" id="state-notice" role="status" aria-live="polite" hidden>
+            <p id="state-notice-text"></p>
+            <details id="state-notice-details" hidden>
+                <summary>查看错误</summary>
+                <p id="state-notice-errors"></p>
+            </details>
+        </aside>
+
         <!-- 反调试板块：3列网格 -->
-        <div class="scripts-grid">
+        <div class="scripts-grid" id="panel-antidebug" role="tabpanel" aria-labelledby="tab-antidebug">
             <!-- Scripts will be dynamically loaded here -->
         </div>
 
         <!-- Hook板块 -->
-        <div class="hook-content" style="display: none;">
+        <div class="hook-content" id="panel-hook" role="tabpanel" aria-labelledby="tab-hook" style="display: none;">
             <!-- Hook板块内容将动态加载 -->
         </div>
 
         <!-- Vue/React板块 -->
-        <div class="vue-content" style="display: none;">
+        <div class="vue-content" id="panel-vue" role="tabpanel" aria-labelledby="tab-vue" style="display: none;">
             <!-- 子Tab栏 -->
             <div class="vue-subtabs-container">
                 <button class="vue-subtab-btn active" data-subtab="vue">Vue</button>
@@ -251,6 +269,54 @@
             </div>
         </div>
 
+        <section class="mcp-content" id="panel-mcp" role="tabpanel" aria-labelledby="tab-mcp" style="display: none;">
+        <div class="mcp-heading">
+            <h2>连接你的 Agent</h2>
+            <div class="mcp-heading-actions">
+                <a id="mcp-download" class="mcp-download-link" target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1" aria-describedby="mcp-download-version">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5"></path>
+                    </svg>
+                    下载 MCP + Skills
+                </a>
+                <button type="button" id="mcp-prompts-open" aria-haspopup="dialog" aria-controls="mcp-prompts-dialog">提示词</button>
+            </div>
+        </div>
+        <p id="mcp-download-feedback" role="status" hidden></p>
+        <section class="status-box" aria-live="polite">
+            <span id="status-dot" class="dot"></span><strong id="status">尚未启用</strong>
+            <p id="status-detail">先启动本地 MCP，再填写配对信息并启用连接。</p>
+        </section>
+        <form id="connection-form">
+            <label for="url">本地连接地址</label>
+            <input id="url" type="url" required value="ws://127.0.0.1:19876/extension" spellcheck="false">
+            <label for="token">配对密钥</label>
+            <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 MCP 设置命令显示的配对密钥">
+            <p class="field-hint">密钥仅保存在扩展中，不会写入网页。</p>
+            <button type="submit" id="save" disabled>启用 MCP 并允许 Agent 控制浏览器</button>
+            <div class="connection-actions" id="connection-actions" hidden>
+                <button type="button" id="stop-mcp" hidden>停止 MCP</button>
+            </div>
+            <p id="browser-permission-status" role="status">正在检查控制状态…</p>
+            <p id="feedback" role="status"></p>
+        </form>
+        <details class="instructions">
+            <summary>首次连接说明</summary>
+            <p id="mcp-download-version">配套包包含安装说明。</p>
+            <ol>
+                <li>点击“下载 MCP + Skills”，在打开的 GitHub 发布页的 Assets 中下载 <code>AntiDebug_Breaker-Agent-*.zip</code>。解压后按包内安装说明操作：在 <code>mcp</code> 目录执行 <code>npm ci</code> 和 <code>npm run setup</code>，再将 Skills 安装到客户端。</li>
+                <li>将本项目 MCP 加入你的 Agent 客户端配置，由客户端启动服务；也可先执行 <code>npm start</code> 检查扩展连接。</li>
+                <li>粘贴配对信息，点击“启用 MCP 并允许 Agent 控制浏览器”，一次开启连接和控制。设置会保存，正常重启后无需再次启用。</li>
+                <li>Agent 通过扩展连接标签页，可使用脚本开关、Hook 参数、路由、断点、网络和页面交互，无需开启 Chrome 的远程调试连接。</li>
+                <li>启用后，主按钮变为“保存连接设置”，可更新地址和密钥。“停止 MCP”会断开连接和调试会话，并保留已保存的配对信息。</li>
+                <li>通过 Chrome 调试提示条取消后，MCP 连接保持启用；需点击“重新启用浏览器控制”才能恢复控制，点击时也会保存当前配对信息。</li>
+                <li>旧版设置会保留，已停用的控制不会因升级或重新打开面板而开启。若 Chrome 在更新后停用扩展，请先到扩展管理页确认新增权限。</li>
+            </ol>
+            <p>调试数据会交给你选择的 Agent 客户端。Chrome 的调试提示条无需点击允许；停止 MCP 不会撤销扩展已声明的 Chrome 调试权限。</p>
+        </details>
+    
+        </section>
+
         <div class="no-results">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -267,12 +333,34 @@
         </footer>
     </div>
 
+    <dialog id="mcp-prompts-dialog" class="mcp-prompts-dialog" aria-labelledby="mcp-prompts-title" aria-describedby="mcp-prompts-help">
+        <div class="mcp-prompts-heading">
+            <h2 id="mcp-prompts-title">推荐提示词</h2>
+            <button type="button" id="mcp-prompts-close" aria-label="关闭推荐提示词">关闭</button>
+        </div>
+        <p id="mcp-prompts-help">替换 {…} 后发给 Agent。需要登录时先在 Chrome 登录；有特定角色、触发步骤或分析范围时一并说明。</p>
+        <div class="mcp-prompt-options" role="group" aria-label="选择任务">
+            <button type="button" data-mcp-prompt="antidebug" aria-pressed="true">反调试</button>
+            <button type="button" data-mcp-prompt="crypto" aria-pressed="false">加密逆向</button>
+            <button type="button" data-mcp-prompt="routes" aria-pressed="false">Vue/React 路由</button>
+        </div>
+        <textarea id="mcp-prompt-text" readonly spellcheck="false" aria-label="推荐提示词正文" aria-describedby="mcp-prompt-note"></textarea>
+        <p id="mcp-prompt-note" hidden></p>
+        <div class="mcp-prompt-actions">
+            <p id="mcp-prompt-feedback" role="status" aria-live="polite"></p>
+            <button type="button" id="mcp-prompt-copy">复制提示词</button>
+        </div>
+    </dialog>
+
     <!-- Toast提示 -->
-    <div id="toast" class="toast">
+    <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true">
         <div class="toast-message">已保存</div>
     </div>
 
     <script src="popup.js"></script>
+    <script src="mcp.js"></script>
+    <script src="mcp-prompts.js"></script>
+    <script src="mcp-download.js"></script>
 </body>
 
 </html>

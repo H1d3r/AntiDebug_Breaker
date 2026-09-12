@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("Fixed_window_size")) {
 // ==UserScript==
 // @name         Fixed_window_size
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -74,3 +76,6 @@
         }
     });
 })();
+window.__ADB_OBSERVER__?.installed("Fixed_window_size");
+
+}

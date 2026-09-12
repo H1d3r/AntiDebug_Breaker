@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("location_href")) {
 // ==UserScript==
 // @name         页面跳转JS代码定位通杀方案
 // @namespace   https://github.com/JSREI/page-redirect-code-location-hook
@@ -19,3 +21,6 @@
     }
 
 })();
+window.__ADB_OBSERVER__?.installed("location_href");
+
+}

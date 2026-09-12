@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_table")) {
 // ==UserScript==
 // @name         hook_table
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -27,3 +29,6 @@
         // 在这里写你想让hook后的方法执行的代码
     }
 })();
+window.__ADB_OBSERVER__?.installed("hook_table");
+
+}

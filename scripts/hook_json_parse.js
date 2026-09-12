@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_json_parse")) {
 // ==UserScript==
 // @name         hook_JSON
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -21,7 +23,9 @@
         localStorage.removeItem("Antidebug_breaker_" + id + "_stack");
     }
 
+    let adbInitialized = false;
     function initHook() {
+        if (adbInitialized || window.__ADB_OBSERVER__?.isInstalled?.("hook_json_parse")) return;
         let flag = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_flag");
         let param = JSON.parse(localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_param"));
         let is_debugger = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_debugger");
@@ -31,6 +35,7 @@
         JSON.parse = function () {
             if (flag === "0") {
                 console.log("调用JSON.parse ---> ", arguments[0]);
+                window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                 if (is_debugger === "1") {
                     debugger;
                 }
@@ -40,6 +45,7 @@
             } else {
                 if (arguments[0] && typeof arguments[0] === "string" && param.some(item => arguments[0].includes(item))) {
                     console.log("捕获到调用JSON.parse指定字符串 ---> ", arguments[0]);
+                    window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                     if (is_debugger === "1") {
                         debugger;
                     }
@@ -51,6 +57,8 @@
             return json_p(...arguments);
         }
         clear_Antidebug(SCRIPT_ID);
+        adbInitialized = true;
+        window.__ADB_OBSERVER__?.installed(SCRIPT_ID);
     }
 
     function setupConfigListener() {
@@ -75,3 +83,4 @@
     // 立即设置监听器
     setupConfigListener();
 })();
+}

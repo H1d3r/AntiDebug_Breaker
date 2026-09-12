@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_Date_now")) {
 // ==UserScript==
 // @name         New Userscript
 // @namespace    http://tampermonkey.net/
@@ -20,13 +22,16 @@
         localStorage.removeItem("Antidebug_breaker_" + id + "_stack");
     }
 
+    let adbInitialized = false;
     function initHook() {
+        if (adbInitialized || window.__ADB_OBSERVER__?.isInstalled?.("Hook_Date_now")) return;
         let is_debugger = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_debugger");
         let is_stack = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_stack");
 
         let date_value = Number(localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_value"));
 
         Date.now = function () {
+            window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { value: date_value });
             if (is_debugger === "1") {
                 debugger;
             }
@@ -36,6 +41,8 @@
             return date_value;
         }
         clear_Antidebug(SCRIPT_ID);
+        adbInitialized = true;
+        window.__ADB_OBSERVER__?.installed(SCRIPT_ID);
     }
 
     function setupConfigListener() {
@@ -61,3 +68,5 @@
     setupConfigListener();
 
 })();
+
+}

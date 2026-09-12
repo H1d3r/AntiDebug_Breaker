@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_cookie")) {
 // ==UserScript==
 // @name         Hook_cookie
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -21,7 +23,9 @@
         localStorage.removeItem("Antidebug_breaker_" + id + "_stack");
     }
 
+    let adbInitialized = false;
     function initHook() {
+        if (adbInitialized || window.__ADB_OBSERVER__?.isInstalled?.("Hook_cookie")) return;
         let flag = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_flag");
         let param = JSON.parse(localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_param"));
         let is_debugger = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_debugger");
@@ -64,6 +68,7 @@
             set: function (cookie) {
                 if (flag === "0") {
                     console.log("设置cookie：\n", cookie);
+                    window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { cookie });
                     if (is_debugger === "1") {
                         debugger;
                     }
@@ -74,6 +79,7 @@
                     let cookie_key = parseCookieNames(cookie);
                     if (cookie_key && cookie_key.length !== 0 && param.some(item => cookie_key[0].includes(item))) {
                         console.log(`捕获到设置cookie ---> ${cookie_key[0]}\n值：${cookie}`);
+                        window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { cookie });
                         if (is_debugger === "1") {
                             debugger;
                         }
@@ -86,6 +92,8 @@
             }
         })
         clear_Antidebug(SCRIPT_ID);
+        adbInitialized = true;
+        window.__ADB_OBSERVER__?.installed(SCRIPT_ID);
     }
 
     function setupConfigListener() {
@@ -110,3 +118,4 @@
     // 立即设置监听器
     setupConfigListener();
 })();
+}

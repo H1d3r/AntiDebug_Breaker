@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_JSEncrypt_SMcrypto")) {
 // ==UserScript==
 // @name         Hook_JSEncrypt_SM
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -90,6 +92,7 @@
 // 替换 SM2 doEncrypt 的方法
     function my_doEncrypt() {
         let result = Reflect.apply(raw_doEncrypt, this, arguments);
+        window.__ADB_OBSERVER__?.emit("Hook_JSEncrypt_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM2", operation: "encrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
         console.log("SM2 加密明文:", arguments[0]);
         console.log("SM2 加密公钥:", arguments[1]);
         console.log("SM2 加密密文:", result);
@@ -102,6 +105,7 @@
 // 替换 SM2 doDecrypt 的方法
     function my_doDecrypt() {
         let result = Reflect.apply(raw_doDecrypt, this, arguments);
+        window.__ADB_OBSERVER__?.emit("Hook_JSEncrypt_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM2", operation: "decrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
         console.log("SM2 解密密文:", arguments[0]);
         console.log("SM2 解密私钥:", arguments[1]);
         console.log("SM2 解密明文:", result);
@@ -114,6 +118,7 @@
 // 替换 SM4 doDecrypt 的方法
     function my_sm4_encrypt() {
         let result = Reflect.apply(raw_sm4_encrypt, this, arguments);
+        window.__ADB_OBSERVER__?.emit("Hook_JSEncrypt_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM4", operation: "encrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
         console.log("SM4 加密明文:", arguments[0]);
         console.log("SM4 加密key:", arguments[1]);
         if (arguments[2] && typeof arguments[2] === "object") {
@@ -137,6 +142,7 @@
 // 替换 SM4 doDecrypt 的方法
     function my_sm4_decrypt() {
         let result = Reflect.apply(raw_sm4_decrypt, this, arguments);
+        window.__ADB_OBSERVER__?.emit("Hook_JSEncrypt_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM4", operation: "decrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
         console.log("SM4 解密密文:", arguments[0]);
         console.log("SM4 解密key:", arguments[1]);
         if (arguments[2] && typeof arguments[2] === "object") {
@@ -160,6 +166,7 @@
 // 替换 SM3 encrypt 的方法
     function my_SM3() {
         let result = Reflect.apply(raw_sm3, this, arguments);
+        window.__ADB_OBSERVER__?.emit("Hook_JSEncrypt_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM3", operation: "digest", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
         console.log("SM3 加密明文：:", arguments[0]);
         console.log("SM3 加密密文：:", result);
         return result;
@@ -218,7 +225,9 @@
                     arguments[0].__proto__.__proto__.encrypt = function () {
                         let encrypt_text = temp_encrypt.bind(this, ...arguments)();
 
-                        console.log("RSA 公钥：\n", this.getPublicKey());
+                        const adbPublicKey = this.getPublicKey();
+                        window.__ADB_OBSERVER__?.emit("Hook_JSEncrypt_SMcrypto", "crypto", { library: "JSEncrypt", algorithm: "RSA", operation: "encrypt", input: arguments[0], key: adbPublicKey, output: encrypt_text, outputEncoding: "hex" });
+                        console.log("RSA 公钥：\n", adbPublicKey);
                         console.log("RSA加密 原始数据：", ...arguments);
                         console.log("RSA加密 Base64 密文：", f(encrypt_text));
                         console.log("%c---------------------------------------------------------------------", "color: green;");
@@ -233,7 +242,9 @@
                     arguments[0].__proto__.__proto__.decrypt = function () {
                         let decrypt_text = temp_decrypt.bind(this, ...arguments)();
 
-                        console.log("RSA 私钥：\n", this.getPrivateKey());
+                        const adbPrivateKey = this.getPrivateKey();
+                        window.__ADB_OBSERVER__?.emit("Hook_JSEncrypt_SMcrypto", "crypto", { library: "JSEncrypt", algorithm: "RSA", operation: "decrypt", input: arguments[0], key: adbPrivateKey, output: decrypt_text });
+                        console.log("RSA 私钥：\n", adbPrivateKey);
                         console.log("RSA解密 Base64 原始数据：", f(...arguments));
                         console.log("RSA解密 明文：", decrypt_text);
                         console.log("%c---------------------------------------------------------------------", "color: green;");
@@ -277,3 +288,6 @@
         return result;
     }
 })();
+window.__ADB_OBSERVER__?.installed("Hook_JSEncrypt_SMcrypto");
+
+}

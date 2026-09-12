@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_sessionStorage_clear")) {
 // ==UserScript==
 // @name         hook_localStorage
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -20,7 +22,9 @@
         localStorage.removeItem("Antidebug_breaker_" + id + "_stack");
     }
 
+    let adbInitialized = false;
     function initHook() {
+        if (adbInitialized || window.__ADB_OBSERVER__?.isInstalled?.("hook_sessionStorage_clear")) return;
         let flag = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_flag");
         let is_debugger = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_debugger");
         let is_stack = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_stack");
@@ -30,6 +34,7 @@
         sessionStorage.clear = function () {
             if (flag === "0") {
                 console.log("捕获到移除了sessionStorage中的所有键值对");
+                window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                 if (is_debugger === "1") {
                     debugger;
                 }
@@ -40,6 +45,8 @@
             return temp_sessionStorage_clear.call(this, ...arguments);
         }
         clear_Antidebug(SCRIPT_ID);
+        adbInitialized = true;
+        window.__ADB_OBSERVER__?.installed(SCRIPT_ID);
     }
 
     function setupConfigListener() {
@@ -64,3 +71,4 @@
     // 立即设置监听器
     setupConfigListener();
 })();
+}

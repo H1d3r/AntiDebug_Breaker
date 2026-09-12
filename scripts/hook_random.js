@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_random")) {
 // ==UserScript==
 // @name         hook_random
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -20,12 +22,15 @@
         localStorage.removeItem("Antidebug_breaker_" + id + "_stack");
     }
 
+    let adbInitialized = false;
     function initHook() {
+        if (adbInitialized || window.__ADB_OBSERVER__?.isInstalled?.("hook_random")) return;
         let is_debugger = localStorage.getItem("Antidebug_breaker_hook_random_debugger");
         let is_stack = localStorage.getItem("Antidebug_breaker_hook_random_stack");
         let random_value = Number(localStorage.getItem("Antidebug_breaker_hook_random_value"));
 
         Math.random = function () { // 将xxx修改为要hook的方法
+            window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { value: random_value });
             if (is_debugger === "1") {
                 debugger;
             }
@@ -35,6 +40,8 @@
             return random_value;
         }
         clear_Antidebug(SCRIPT_ID);
+        adbInitialized = true;
+        window.__ADB_OBSERVER__?.installed(SCRIPT_ID);
     }
 
     function setupConfigListener() {
@@ -59,3 +66,4 @@
     // 立即设置监听器
     setupConfigListener();
 })();
+}

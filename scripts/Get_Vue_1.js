@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_Vue_1")) {
 // ==UserScript==
 // @name         Get_Vue
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -38,11 +40,13 @@
     let hasOutputResult = false; // 标记是否已经输出过结果
 
 // 发送数据到插件
-function sendToExtension(data) {
+let adbRequestId = null;
+    function sendToExtension(data) {
     try {
         window.postMessage({
             type: 'VUE_ROUTER_DATA',
             source: 'get-vue-script',
+                requestId: adbRequestId,
             data: data
         }, '*');
     } catch (error) {
@@ -56,6 +60,7 @@ function sendToExtension(data) {
                 window.postMessage({
                     type: 'VUE_ROUTER_DATA',
                     source: 'get-vue-script',
+                requestId: adbRequestId,
                     data: {
                         serializationError: true,
                         errorType: 'DataCloneError',
@@ -104,6 +109,9 @@ function sendToExtension(data) {
         
         // 检查是否是请求Vue数据的消息
         if (event.data && event.data.type === 'REQUEST_VUE_ROUTER_DATA' && event.data.source === 'antidebug-extension') {
+                adbRequestId = typeof event.data.requestId === "string" ? event.data.requestId : null;
+                if (document.body) tryGetInstances();
+
             // 从缓存的实例中获取最新数据
             if (validInstancesCache.length > 0) {
                 // 一次性收集所有实例数据
@@ -559,3 +567,7 @@ function sendToExtension(data) {
     // 启动
     init();
 })();
+
+window.__ADB_OBSERVER__?.installed("Get_Vue_1");
+
+}

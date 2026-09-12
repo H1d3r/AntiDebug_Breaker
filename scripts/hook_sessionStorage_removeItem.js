@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_sessionStorage_removeItem")) {
 // ==UserScript==
 // @name         hook_localStorage
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -21,7 +23,9 @@
         localStorage.removeItem("Antidebug_breaker_" + id + "_stack");
     }
 
+    let adbInitialized = false;
     function initHook() {
+        if (adbInitialized || window.__ADB_OBSERVER__?.isInstalled?.("hook_sessionStorage_removeItem")) return;
         let flag = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_flag");
         let param = JSON.parse(localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_param"));
         let is_debugger = localStorage.getItem("Antidebug_breaker_" + SCRIPT_ID + "_debugger");
@@ -32,6 +36,7 @@
         sessionStorage.removeItem = function () {
             if (flag === "0") {
                 console.log("移除了sessionStorage键\n键名 ---> " + arguments[0]);
+                window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                 if (is_debugger === "1") {
                     debugger;
                 }
@@ -41,6 +46,7 @@
             } else {
                 if (arguments[0] && param.some(item => arguments[0].includes(item))) {
                     console.log(`捕获到移除了sessionStorage键 ---> ${arguments[0]}`);
+                    window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                     if (is_debugger === "1") {
                         debugger;
                     }
@@ -52,6 +58,8 @@
             return temp_sessionStorage_removeItem.call(this, ...arguments);
         }
         clear_Antidebug(SCRIPT_ID);
+        adbInitialized = true;
+        window.__ADB_OBSERVER__?.installed(SCRIPT_ID);
     }
 
     function setupConfigListener() {
@@ -76,3 +84,4 @@
     // 立即设置监听器
     setupConfigListener();
 })();
+}

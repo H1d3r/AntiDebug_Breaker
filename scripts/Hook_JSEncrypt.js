@@ -1,3 +1,5 @@
+// Avoid duplicate installation when CDP and extension document-start injection overlap.
+if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_JSEncrypt")) {
 // ==UserScript==
 // @name         Hook_JSEncrypt_RSA
 // @namespace    https://github.com/0xsdeo/Hook_JS
@@ -66,7 +68,9 @@
                     arguments[0].__proto__.__proto__.encrypt = function () {
                         let encrypt_text = temp_encrypt.bind(this, ...arguments)();
 
-                        console.log("RSA 公钥：\n", this.getPublicKey());
+                        const adbPublicKey = this.getPublicKey();
+                        window.__ADB_OBSERVER__?.emit("Hook_JSEncrypt", "crypto", { library: "JSEncrypt", algorithm: "RSA", operation: "encrypt", input: arguments[0], key: adbPublicKey, output: encrypt_text, outputEncoding: "hex" });
+                        console.log("RSA 公钥：\n", adbPublicKey);
                         console.log("RSA加密 原始数据：", ...arguments);
                         console.log("RSA加密 Base64 密文：", f(encrypt_text));
                         console.log("%c---------------------------------------------------------------------", "color: green;");
@@ -81,7 +85,9 @@
                     arguments[0].__proto__.__proto__.decrypt = function () {
                         let decrypt_text = temp_decrypt.bind(this, ...arguments)();
 
-                        console.log("RSA 私钥：\n", this.getPrivateKey());
+                        const adbPrivateKey = this.getPrivateKey();
+                        window.__ADB_OBSERVER__?.emit("Hook_JSEncrypt", "crypto", { library: "JSEncrypt", algorithm: "RSA", operation: "decrypt", input: arguments[0], key: adbPrivateKey, output: decrypt_text });
+                        console.log("RSA 私钥：\n", adbPrivateKey);
                         console.log("RSA解密 Base64 原始数据：", f(...arguments));
                         console.log("RSA解密 明文：", decrypt_text);
                         console.log("%c---------------------------------------------------------------------", "color: green;");
@@ -93,3 +99,6 @@
         return temp_call.bind(this, ...arguments)();
     }
 })();
+window.__ADB_OBSERVER__?.installed("Hook_JSEncrypt");
+
+}
