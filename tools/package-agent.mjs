@@ -16,6 +16,7 @@ export const agentFiles = Object.freeze([
   'mcp/src/config.js',
   'mcp/src/bridge.js',
   'mcp/src/browser.js',
+  'mcp/src/cookies.js',
   'mcp/src/extension-browser.js',
   'mcp/src/tools.js',
   'skills/antidebug-breaker-skills/SKILL.md',

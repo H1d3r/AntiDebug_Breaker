@@ -8,8 +8,8 @@ import { prepareAgentPackage } from './package-agent.mjs';
 
 const fixedFiles = [
   'manifest.json', 'agent-release.json', 'background.js', 'content.js', 'scripts.json',
-  'extension/policy.js', 'extension/service.js', 'extension/bridge.js', 'extension/debugger.js',
-  'popup/popup.html', 'popup/popup.js', 'popup/popup.css',
+  'extension/policy.js', 'extension/service.js', 'extension/bridge.js', 'extension/debugger.js', 'extension/user-scripts.js',
+  'popup/popup.html', 'popup/popup.js', 'popup/popup.css', 'popup/library-editor.js', 'popup/library-cards.js',
   'popup/mcp.js', 'popup/mcp.css', 'popup/mcp-prompts.js', 'popup/mcp-download.js',
   'icons/icon16.png', 'icons/icon32.png', 'icons/icon48.png', 'icons/icon128.png',
   'scripts/adb_runtime.js', 'scripts/hook_log v0.1.js', 'scripts/hook_log v0.2.js',

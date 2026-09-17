@@ -214,7 +214,9 @@
             if (this.completed.has(message.id)) { this.send(this.completed.get(message.id).response, socket, chunked); return; }
             let entry = this.inflight.get(message.id);
             if (!entry) {
-                const promise = this.service.execute(message.method, message.params || {}).then(
+                const promise = this.service.execute(message.method, message.params || {}, {
+                    source: 'mcp', isCurrent: () => this.connected && this.socket === socket
+                }).then(
                     result => ({ type: 'response', id: message.id, result }),
                     error => ({ type: 'response', id: message.id, error: this.serializeError(error) })
                 );

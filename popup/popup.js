@@ -41,6 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const scriptsGrid = document.querySelector('.scripts-grid');
     const hookContent = document.querySelector('.hook-content');
     const vueContent = document.querySelector('.vue-content');
+    const libraryContent = document.querySelector('.library-content');
+    const libraryList = document.getElementById('library-list');
+    const librarySummary = document.getElementById('library-summary');
+    const libraryEmpty = document.getElementById('library-empty');
+    const libraryNotice = document.getElementById('library-notice');
+    const libraryFeedback = document.getElementById('library-feedback');
+    const libraryRefresh = document.getElementById('library-refresh');
     const mcpContent = document.querySelector('.mcp-content');
     const vueScriptsList = document.querySelector('.vue-scripts-list');
     const vueRouterData = document.querySelector('.vue-router-data');
@@ -133,6 +140,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let isGlobalMode = false; // 当前是否为全局模式
     let latestState = null;
     let stateRefreshTimer;
+    let libraryRefreshTimer;
+    let libraryLoading = false;
+    let libraryWriting = false;
+    let libraryLoaded = false;
+    let libraryDirty = true;
     const routerRequests = new Map();
 
     // 🆕 Hook板块筛选状态（'enabled' | 'disabled' | null）
@@ -161,11 +173,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function command(method, params = {}) {
         const request = chrome.runtime.sendMessage({ type: "ADB_COMMAND", method, params });
         let reply;
-        if (method === 'state.get') {
+        if (method === 'state.get' || method === 'library.list' || method === 'library.get') {
             // A cached 3.0.8 worker accepts the message port but never answers
             // ADB_COMMAND. Bound this read without retrying or timing out writes.
             let timer;
-            const unavailable = () => Object.assign(new Error('扩展后台未响应状态查询，可能仍在运行旧版后台。'), { code: 'BACKGROUND_UNAVAILABLE' });
+            const unavailable = () => Object.assign(new Error(method.startsWith('library.')
+                ? '扩展后台未响应脚本库查询，请重试；如持续失败，请重新加载扩展。'
+                : '扩展后台未响应状态查询，可能仍在运行旧版后台。'), { code: 'BACKGROUND_UNAVAILABLE' });
             try {
                 reply = await Promise.race([request, new Promise((_, reject) => {
                     timer = setTimeout(() => reject(unavailable()), 5000);
@@ -273,6 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function handleServiceMessage(message) {
         if (message.type === 'ADB_EVENT') {
+            if (message.event === 'library.changed') scheduleLibraryRefresh();
             if (message.event === 'config.changed' ||
                 (message.data?.tabId === currentTab_obj?.id && ['document.ready', 'config.applied'].includes(message.event))) {
                 scheduleStateRefresh();
@@ -315,7 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allScripts = catalog;
         currentTab_obj = tabs[0];
         try { hostname = new URL(currentTab_obj?.url).hostname; } catch (_) { hostname = ''; }
-        if (["antidebug", "hook", "vue", "mcp"].includes(preferences.last_active_tab)) currentTab = preferences.last_active_tab;
+        if (["antidebug", "hook", "vue", "scripts", "mcp"].includes(preferences.last_active_tab)) currentTab = preferences.last_active_tab;
         if (["vue", "react"].includes(preferences[LAST_VUE_SUBTAB_KEY])) currentVueSubTab = preferences[LAST_VUE_SUBTAB_KEY];
         syncTabButtons('instant');
         vueSubtabBtns.forEach(button => button.classList.toggle("active", button.dataset.subtab === currentVueSubTab));
@@ -333,11 +348,19 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (currentTab === "hook") renderHookScripts(applyHookFilter(scripts));
     });
     chrome.storage.onChanged.addListener((changes, area) => {
-        if (area !== "local" || !changes.adb_revision) return;
-        scheduleStateRefresh();
+        if (area !== "local") return;
+        if (changes.adb_script_library) scheduleLibraryRefresh();
+        if (changes.adb_revision) scheduleStateRefresh();
     });
     chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
         if (tabId === currentTab_obj?.id && (changeInfo.url || changeInfo.status)) scheduleStateRefresh();
+    });
+    libraryRefresh.addEventListener('click', scheduleLibraryRefresh);
+    window.addEventListener('focus', () => {
+        if (currentTab === 'scripts') scheduleLibraryRefresh();
+    });
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && currentTab === 'scripts') scheduleLibraryRefresh();
     });
 
     // 🆕 全局模式开关事件监听
@@ -376,6 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function selectTab(button) {
         const opened = currentTab !== button.dataset.tab;
         currentTab = button.dataset.tab;
+        if (opened && currentTab === 'scripts') libraryDirty = true;
         searchInput.value = '';
         syncTabButtons();
         renderCurrentTab();
@@ -502,15 +526,165 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 渲染当前标签的内容
+    function scheduleLibraryRefresh() {
+        libraryDirty = true;
+        clearTimeout(libraryRefreshTimer);
+        if (currentTab === 'scripts' && !libraryLoading && !libraryWriting) {
+            libraryRefreshTimer = setTimeout(refreshLibrary, 80);
+        }
+    }
+
+    async function refreshLibrary() {
+        if (currentTab !== 'scripts' || libraryLoading || libraryWriting || !libraryDirty) return;
+        clearTimeout(libraryRefreshTimer);
+        libraryDirty = false;
+        libraryLoading = true;
+        setLibraryBusy();
+        libraryFeedback.hidden = false;
+        libraryFeedback.classList.remove('library-error');
+        libraryFeedback.textContent = '正在读取脚本库…';
+        try {
+            const result = await command('library.list');
+            if (!Array.isArray(result?.scripts) || !result.status) throw new Error('后台返回的脚本库数据不完整，请重新加载扩展后重试。');
+            renderLibrary(result);
+            libraryLoaded = true;
+            libraryFeedback.hidden = true;
+        } catch (error) {
+            libraryFeedback.classList.add('library-error');
+            libraryFeedback.textContent = (libraryLoaded ? '刷新失败，以下保留上次读取的结果。' : '脚本库读取失败。') +
+                (error.code === 'METHOD_NOT_FOUND' ? '请重新加载扩展后重试。' : error.message || '请点击刷新重试。');
+        } finally {
+            libraryLoading = false;
+            setLibraryBusy();
+            // A save may finish while a read is pending. Fetch once more so the
+            // earlier snapshot cannot swallow that change; never overlap reads.
+            if (libraryDirty) scheduleLibraryRefresh();
+        }
+    }
+
+    function setLibraryBusy() {
+        const busy = libraryLoading || libraryWriting;
+        libraryRefresh.disabled = busy;
+        libraryList.setAttribute('aria-busy', String(busy));
+        libraryList.querySelectorAll('.library-toggle, .library-edit').forEach(input => { input.disabled = busy; });
+        globalThis.ADBLibraryCards?.setBusy(busy);
+    }
+
+    async function setLibraryEnabled(script, revision, input) {
+        const enabled = input.checked;
+        // Keep the acknowledged state until persistence succeeds. A library-wide
+        // revision prevents an old popup from overwriting an Agent's newer edit.
+        input.checked = script.enabled;
+        if (libraryLoading || libraryWriting) return;
+        libraryWriting = true;
+        setLibraryBusy();
+        try {
+            const result = await command('library.setEnabled', { id: script.id, enabled, expectedRevision: revision });
+            if (result?.saved !== true) throw new Error('未能确认开关已保存，请刷新列表检查状态。');
+            showToast(result.registrationUpdated
+                ? (enabled ? '已启用，匹配页面下次加载时生效。' : '已停用，已打开页面需刷新才能清除原脚本效果。')
+                : '开关已保存，暂时无法确认注册已同步，请查看下方错误提示。');
+        } catch (error) {
+            showToast(error.code === 'REVISION_CONFLICT' ? '脚本库已被更新，本次未更改。请查看最新状态后重试。'
+                : error.code === 'SCRIPT_NOT_FOUND' ? '脚本已被删除，正在刷新列表。'
+                : error.code === 'METHOD_NOT_FOUND' ? '请重新加载扩展后再使用脚本开关。'
+                : error.message || '开关保存失败，请重试。');
+        } finally {
+            libraryWriting = false;
+            libraryDirty = true;
+            setLibraryBusy();
+            await refreshLibrary();
+        }
+    }
+
+    function renderLibrary(result) {
+        const fragment = document.createDocumentFragment();
+        const addText = (parent, tag, className, text) => {
+            const element = document.createElement(tag);
+            element.className = className;
+            element.textContent = text;
+            parent.append(element);
+            return element;
+        };
+        for (const script of result.scripts) {
+            const card = document.createElement('li');
+            card.className = 'library-card';
+            const heading = document.createElement('div');
+            heading.className = 'library-card-heading';
+            card.append(heading);
+            const nameGroup = document.createElement('div');
+            nameGroup.className = 'library-name-group';
+            heading.append(nameGroup);
+            addText(nameGroup, 'h3', 'library-script-name', script.name);
+            const controls = document.createElement('div');
+            controls.className = 'library-controls';
+            heading.append(controls);
+            const enabled = addText(controls, 'span', 'library-enabled', script.enabled ? '已启用' : '已停用');
+            enabled.dataset.enabled = String(script.enabled);
+            const toggle = document.createElement('label');
+            toggle.className = 'switch library-switch';
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.className = 'library-toggle';
+            input.dataset.scriptId = script.id;
+            input.setAttribute('role', 'switch');
+            input.setAttribute('aria-label', `启用脚本：${script.name}`);
+            input.checked = script.enabled;
+            input.disabled = libraryLoading || libraryWriting;
+            input.addEventListener('change', () => setLibraryEnabled(script, result.revision, input));
+            const slider = document.createElement('span');
+            slider.className = 'slider';
+            slider.setAttribute('aria-hidden', 'true');
+            toggle.append(input, slider);
+            controls.append(toggle);
+            const matchGroup = document.createElement('div');
+            matchGroup.className = 'library-match-group';
+            const matchHeading = document.createElement('div');
+            matchHeading.className = 'library-match-heading';
+            matchGroup.append(matchHeading);
+            card.append(matchGroup);
+            addText(matchHeading, 'p', 'library-match-label', '匹配网站');
+            const matches = document.createElement('ul');
+            matches.className = 'library-matches';
+            for (const pattern of script.matches) addText(matches, 'li', '', pattern);
+            matchGroup.append(matches);
+            if (script.registrationError) addText(card, 'p', 'library-card-error', `注册错误：${script.registrationError.message}`);
+            const actions = document.createElement('div');
+            actions.className = 'library-card-actions';
+            card.append(actions);
+            const edit = addText(actions, 'button', 'library-edit', '查看 / 编辑');
+            edit.type = 'button';
+            edit.dataset.scriptId = script.id;
+            edit.disabled = libraryLoading || libraryWriting;
+            edit.setAttribute('aria-label', `查看或编辑脚本：${script.name}`);
+            edit.setAttribute('aria-haspopup', 'dialog');
+            edit.setAttribute('aria-controls', 'library-editor-dialog');
+            edit.addEventListener('click', () => window.ADBLibraryEditor.open(script.id, command, scheduleLibraryRefresh));
+            window.ADBLibraryCards.mount(card, script, result.revision, { command, onSaved: scheduleLibraryRefresh, showToast });
+            fragment.append(card);
+        }
+        libraryList.replaceChildren(fragment);
+        librarySummary.textContent = `共 ${result.scripts.length} 个`;
+        libraryEmpty.hidden = result.scripts.length !== 0;
+        libraryNotice.hidden = result.status.available !== false && result.status.registrationUpdated !== false;
+        libraryNotice.textContent = result.status.available === false
+            ? `暂时无法同步脚本。${result.status.guidance || '请在扩展详情中检查“允许用户脚本”开关。'}恢复权限后，请点击上方“刷新”同步已保存的设置。`
+            : result.status.registrationUpdated === false
+                ? '脚本设置尚未同步：旧脚本可能仍会注入，新设置可能尚未生效。请查看错误并重试；必要时重新加载扩展。' : '';
+    }
+
     function renderCurrentTab() {
         const scriptsToShow = getScriptsForCurrentTab();
+        libraryContent.style.display = currentTab === 'scripts' ? 'flex' : 'none';
+        if (currentTab === 'scripts') refreshLibrary();
         mcpContent.style.display = currentTab === 'mcp' ? 'flex' : 'none';
         noResults.style.display = 'none';
-        document.querySelector('footer .hint').textContent = currentTab === 'mcp' ? '连接设置保存后即时生效' : '页面刷新后更改生效';
+        document.querySelector('footer .hint').textContent = currentTab === 'mcp' ? '连接设置保存后即时生效'
+            : currentTab === 'scripts' ? '页面下次加载时生效' : '页面刷新后更改生效';
 
         // Unknown state must not be presented as every saved script being off.
-        // The MCP settings panel remains usable while the background is unavailable.
-        if (!latestState && currentTab !== 'mcp') {
+        // Settings and the library remain usable without page state.
+        if (!latestState && !['scripts', 'mcp'].includes(currentTab)) {
             scriptsGrid.style.display = 'none';
             hookContent.style.display = 'none';
             vueContent.style.display = 'none';
@@ -554,7 +728,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 b.classList.toggle('active', b.dataset.subtab === currentVueSubTab);
             });
             renderVueSubTab();
-        } else if (currentTab === 'mcp') {
+        } else if (currentTab === 'scripts' || currentTab === 'mcp') {
             searchContainer.style.display = 'none';
             searchContainer.classList.remove('hook-search-container');
             if (hookNoticeContainer) hookNoticeContainer.style.display = 'none';

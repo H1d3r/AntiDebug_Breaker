@@ -83,6 +83,7 @@
                     <button class="tab-btn active" id="tab-antidebug" role="tab" aria-selected="true" aria-controls="panel-antidebug" data-tab="antidebug">AntiDebug</button>
                     <button class="tab-btn" id="tab-hook" role="tab" aria-selected="false" aria-controls="panel-hook" tabindex="-1" data-tab="hook">Hook</button>
                     <button class="tab-btn" id="tab-vue" role="tab" aria-selected="false" aria-controls="panel-vue" tabindex="-1" data-tab="vue">Vue/React</button>
+                    <button class="tab-btn" id="tab-scripts" role="tab" aria-selected="false" aria-controls="panel-scripts" tabindex="-1" data-tab="scripts">Scripts</button>
                     <button class="tab-btn" id="tab-mcp" role="tab" aria-selected="false" aria-controls="panel-mcp" tabindex="-1" data-tab="mcp">MCP</button>
                 </div>
                 <button class="tab-scroll-btn" id="tabs-next" type="button" aria-label="向右滑动板块">
@@ -269,6 +270,21 @@
             </div>
         </div>
 
+        <section class="library-content" id="panel-scripts" role="tabpanel" aria-labelledby="tab-scripts" style="display: none;">
+            <div class="library-heading">
+                <h2>脚本库 <span id="library-summary"></span></h2>
+                <button type="button" id="library-refresh">刷新</button>
+            </div>
+            <p class="library-description">脚本新增由 Agent 管理，开关作用于该脚本的所有匹配网站，下次页面加载时生效。停用后，已打开页面需刷新才能清除原脚本效果。</p>
+            <p id="library-feedback" role="status" aria-live="polite" hidden></p>
+            <p id="library-notice" class="library-notice" hidden></p>
+            <div id="library-empty" class="library-empty" hidden>
+                <h3>暂无脚本</h3>
+                <p>让 Agent 将脚本保存到脚本库后，会在这里显示。</p>
+            </div>
+            <ul id="library-list" aria-label="已保存的脚本"></ul>
+        </section>
+
         <section class="mcp-content" id="panel-mcp" role="tabpanel" aria-labelledby="tab-mcp" style="display: none;">
         <div class="mcp-heading">
             <h2>连接你的 Agent</h2>
@@ -310,6 +326,7 @@
                 <li>Agent 通过扩展连接标签页，可使用脚本开关、Hook 参数、路由、断点、网络和页面交互，无需开启 Chrome 的远程调试连接。</li>
                 <li>启用后，主按钮变为“保存连接设置”，可更新地址和密钥。“停止 MCP”会断开连接和调试会话，并保留已保存的配对信息。</li>
                 <li>通过 Chrome 调试提示条取消后，MCP 连接保持启用；需点击“重新启用浏览器控制”才能恢复控制，点击时也会保存当前配对信息。</li>
+                <li>Agent 可管理脚本库，用户也可在 Scripts 板块编辑名称、匹配网站和源码，以及启停或删除已有脚本。首次使用请在 Chrome 扩展详情页开启“允许用户脚本”（Chrome 120–137 使用“开发者模式”）。已启用的脚本会在匹配网站加载时自动注入；停止 MCP 不会停用这些脚本。可关闭“允许用户脚本”以停止后续注入，再刷新页面清除旧脚本影响。</li>
                 <li>旧版设置会保留，已停用的控制不会因升级或重新打开面板而开启。若 Chrome 在更新后停用扩展，请先到扩展管理页确认新增权限。</li>
             </ol>
             <p>调试数据会交给你选择的 Agent 客户端。Chrome 的调试提示条无需点击允许；停止 MCP 不会撤销扩展已声明的 Chrome 调试权限。</p>
@@ -332,6 +349,34 @@
             <div class="hint">页面刷新后更改生效</div>
         </footer>
     </div>
+
+    <dialog id="library-editor-dialog" class="library-editor-dialog" aria-labelledby="library-editor-title" aria-describedby="library-editor-help">
+        <div class="library-editor-heading">
+            <h2 id="library-editor-title">查看 / 编辑脚本</h2>
+            <button type="button" id="library-editor-close">关闭</button>
+        </div>
+        <p id="library-editor-meta"></p>
+        <p id="library-editor-help">在此查看、复制或修改源码。保存后，已启用脚本在匹配页面下次加载时生效。</p>
+        <div class="library-editor-source-heading">
+            <label for="library-editor-code">JavaScript 源码</label>
+            <button type="button" id="library-editor-copy" aria-live="polite" disabled>一键复制</button>
+        </div>
+        <textarea id="library-editor-code" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" maxlength="131072" aria-describedby="library-editor-draft" readonly></textarea>
+        <p id="library-editor-copy-feedback" role="status" aria-live="polite" hidden></p>
+        <p id="library-editor-draft">未保存草稿仅在本次浏览器会话中暂存，不会注入网站。</p>
+        <p id="library-editor-feedback" role="status" aria-live="polite"></p>
+        <div id="library-editor-discard" hidden>
+            <p>读取已保存版本会放弃当前草稿。</p>
+            <div class="library-editor-actions">
+                <button type="button" id="library-editor-discard-cancel">继续编辑</button>
+                <button type="button" id="library-editor-discard-confirm">放弃草稿并读取</button>
+            </div>
+        </div>
+        <div class="library-editor-actions">
+            <button type="button" id="library-editor-reload">读取已保存版本</button>
+            <button type="button" id="library-editor-save" disabled>保存修改</button>
+        </div>
+    </dialog>
 
     <dialog id="mcp-prompts-dialog" class="mcp-prompts-dialog" aria-labelledby="mcp-prompts-title" aria-describedby="mcp-prompts-help">
         <div class="mcp-prompts-heading">
@@ -358,6 +403,8 @@
     </div>
 
     <script src="popup.js"></script>
+    <script src="library-editor.js"></script>
+    <script src="library-cards.js"></script>
     <script src="mcp.js"></script>
     <script src="mcp-prompts.js"></script>
     <script src="mcp-download.js"></script>

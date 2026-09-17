@@ -6,7 +6,7 @@
     'use strict';
 
     // Only the commands used by BrowserController are exposed. In particular,
-    // browser-wide commands, target discovery and child-session routing are absent.
+    // browser-wide mutations, target discovery and child-session routing are absent.
     const METHODS = new Set([
         'Runtime.enable', 'Runtime.addBinding', 'Runtime.evaluate', 'Runtime.getProperties',
         'Page.enable', 'Page.setLifecycleEventsEnabled', 'Page.getFrameTree', 'Page.createIsolatedWorld',
@@ -17,6 +17,7 @@
         'Debugger.stepOut', 'Debugger.setBreakpoint', 'Debugger.setBreakpointByUrl',
         'Debugger.removeBreakpoint', 'Debugger.getScriptSource', 'Debugger.searchInContent',
         'Debugger.evaluateOnCallFrame', 'Network.enable', 'Network.getResponseBody',
+        'Storage.getCookies', 'Network.getCookies', 'Network.deleteCookies',
         'Input.dispatchMouseEvent', 'Input.dispatchKeyEvent', 'Input.insertText'
     ]);
 
@@ -44,6 +45,7 @@
             this.emit = options.emit || (() => {});
             // A caller must explicitly supply authenticated bridge state.
             this.isConnected = options.isConnected || (() => false);
+            this.getUserAgent = options.getUserAgent || (() => globalThis.navigator?.userAgent || '');
             this.commandTimeoutMs = timeoutOf(options.commandTimeoutMs, 30000);
             this.records = new Map();
             this.creations = new Set();
@@ -127,6 +129,13 @@
         _connected() {
             if (!this.isConnected()) fail('EXTENSION_DISCONNECTED', 'An authenticated MCP bridge connection is required.');
         }
+        _chromeMajorVersion() {
+            let agent;
+            try { agent = this.getUserAgent(); } catch (_) { return null; }
+            const match = typeof agent === 'string' && /(?:^|\s)(?:HeadlessChrome|Chrome)\/(\d+)\./.exec(agent);
+            const major = match ? Number(match[1]) : NaN;
+            return Number.isSafeInteger(major) && major > 0 ? major : null;
+        }
 
         // Use callbacks for Chrome 120 compatibility and consume runtime.lastError
         // inside the callback. Promise-returning mocks and newer APIs also work.
@@ -189,6 +198,81 @@
             await this._allowedUrl(tab.url);
             if (tab.pendingUrl) await this._allowedUrl(tab.pendingUrl);
             return tab;
+        }
+        _cookieCommand(method, params, tab) {
+            let page;
+            try { page = new URL(tab.url); } catch (_) { /* Reject below. */ }
+            if (!page || !['http:', 'https:'].includes(page.protocol)) {
+                fail('RESTRICTED_TAB', 'Cookie operations require a current HTTP(S) page.');
+            }
+            // Storage.getCookies stays in the attached tab's browser context.
+            // In particular, never accept a caller-selected browserContextId.
+            if (method === 'Storage.getCookies') {
+                if (Object.keys(params).length) fail('INVALID_PARAMS', 'Storage.getCookies does not accept parameters.');
+                return;
+            }
+            if (method === 'Network.getCookies') {
+                if (Object.keys(params).some(key => key !== 'urls') || !Array.isArray(params.urls) ||
+                    !params.urls.length || params.urls.length > 1000) {
+                    fail('INVALID_PARAMS', 'Network.getCookies requires between 1 and 1000 current-origin URLs.');
+                }
+                for (const value of params.urls) {
+                    let url;
+                    try { if (typeof value === 'string') url = new URL(value); } catch (_) { /* Reject below. */ }
+                    if (!url || url.username || url.password || url.hash || value.includes('#')) {
+                        fail('INVALID_PARAMS', 'Cookie URLs must be absolute URLs without credentials or fragments.');
+                    }
+                    if (url.origin !== page.origin) fail('COOKIE_SCOPE_MISMATCH', 'Cookie URLs must use the current page origin.');
+                }
+                return;
+            }
+            if ((this._chromeMajorVersion() || 0) < 138) {
+                fail('UNSUPPORTED_COOKIE_ISOLATION', 'Cookie clearing requires Chrome 138 or newer to preserve other cookie partitions.');
+            }
+            if (Object.keys(params).some(key => !['name', 'domain', 'path', 'partitionKey'].includes(key)) ||
+                typeof params.name !== 'string' || typeof params.domain !== 'string' ||
+                typeof params.path !== 'string' || !params.path.startsWith('/')) {
+                fail('INVALID_PARAMS', 'Cookie deletion requires an exact name, domain and path, with an optional partitionKey.');
+            }
+            const domain = params.domain.toLowerCase();
+            const domainHost = domain.startsWith('.') ? domain.slice(1) : domain;
+            let parsedDomain;
+            try { parsedDomain = new URL(`https://${domainHost}/`); } catch (_) { /* Reject below. */ }
+            if (!domainHost || domainHost.startsWith('.') || !parsedDomain || parsedDomain.hostname !== domainHost ||
+                parsedDomain.username || parsedDomain.password || parsedDomain.port ||
+                parsedDomain.pathname !== '/' || parsedDomain.search || parsedDomain.hash) {
+                fail('INVALID_PARAMS', 'The cookie domain must be an exact hostname, optionally prefixed with a dot.');
+            }
+            if (page.hostname !== domainHost && !(domain.startsWith('.') && page.hostname.endsWith(`.${domainHost}`))) {
+                fail('COOKIE_SCOPE_MISMATCH', 'Only cookies matching the current page hostname can be deleted.');
+            }
+            if (params.partitionKey !== undefined) {
+                const key = params.partitionKey;
+                if (!key || typeof key !== 'object' || Array.isArray(key) ||
+                    Object.keys(key).some(field => !['topLevelSite', 'hasCrossSiteAncestor'].includes(field)) ||
+                    typeof key.topLevelSite !== 'string' || key.hasCrossSiteAncestor !== false) {
+                    fail('INVALID_PARAMS', 'partitionKey requires topLevelSite and hasCrossSiteAncestor: false.');
+                }
+                let site;
+                try { site = new URL(key.topLevelSite); } catch (_) { /* Reject below. */ }
+                if (!site || !['http:', 'https:'].includes(site.protocol) || site.origin !== key.topLevelSite ||
+                    site.username || site.password || site.port) {
+                    fail('INVALID_PARAMS', 'partitionKey.topLevelSite must be an HTTP(S) site without credentials, port or path.');
+                }
+                if (site.protocol !== page.protocol || (page.hostname !== site.hostname && !page.hostname.endsWith(`.${site.hostname}`))) {
+                    fail('COOKIE_SCOPE_MISMATCH', 'Only the current top-level site cookie partition can be deleted.');
+                }
+            }
+        }
+        _cookieMetadata(result, tab) {
+            if (!Array.isArray(result?.cookies)) fail('CDP_COMMAND_FAILED', 'Chrome did not return a cookie list.');
+            const hostname = new URL(tab.url).hostname;
+            return { cookies: result.cookies.filter(cookie => {
+                if (typeof cookie?.domain !== 'string') return false;
+                const domain = cookie.domain.toLowerCase();
+                return hostname === domain || (domain.startsWith('.') &&
+                    (hostname === domain.slice(1) || hostname.endsWith(domain)));
+            }).map(({ value, ...metadata }) => metadata) };
         }
         _current(record) {
             this._connected();
@@ -259,6 +343,7 @@
             if (!permissionGranted && this.records.size) void this.detachAll('permission_removed');
             if (!controlEnabled && this.records.size) void this.detachAll('control_disabled');
             return { available: this._available(), permissionGranted, controlEnabled, connected: Boolean(this.isConnected()),
+                chromeMajorVersion: this._chromeMajorVersion(),
                 sessions: [...this.records.values()].filter(record => record.state === 'ready').map(record => this._describe(record)) };
         }
 
@@ -383,13 +468,42 @@
                 const tab = await this._tab(record.tabId);
                 record.url = tab.url;
                 if (params.method === 'Page.navigate') await this._allowedUrl(params.params?.url);
+                if (['Storage.getCookies', 'Network.getCookies', 'Network.deleteCookies'].includes(params.method)) {
+                    this._cookieCommand(params.method, params.params || {}, tab);
+                }
                 this._current(record);
                 if (settled) fail('DEBUGGER_TIMEOUT', 'The command expired before it could be sent to Chrome.');
+                if (params.method === 'Network.deleteCookies' && params.params?.partitionKey) {
+                    const cookie = params.params;
+                    const pageUrl = tab.url;
+                    const lookup = new URL(new URL(pageUrl).origin);
+                    lookup.pathname = cookie.path;
+                    // Let Chrome's active frame partition decide schemeful site
+                    // membership, including private public-suffix boundaries.
+                    const applicable = await this._invoke(this.chrome.debugger, 'sendCommand',
+                        [{ tabId: record.tabId }, 'Network.getCookies', { urls: [lookup.href] }], 'CDP_COMMAND_FAILED');
+                    this._current(record);
+                    if (settled) fail('DEBUGGER_TIMEOUT', 'The command expired before cookie partition verification finished.');
+                    const matched = Array.isArray(applicable?.cookies) && applicable.cookies.some(item => item.name === cookie.name &&
+                        item.domain === cookie.domain && item.path === cookie.path && !Object.prototype.hasOwnProperty.call(item, 'partitionKeyOpaque') &&
+                        item.partitionKey?.topLevelSite === cookie.partitionKey.topLevelSite &&
+                        item.partitionKey?.hasCrossSiteAncestor === cookie.partitionKey.hasCrossSiteAncestor &&
+                        Object.keys(item.partitionKey).every(key => ['topLevelSite', 'hasCrossSiteAncestor'].includes(key)));
+                    if (!matched) fail('COOKIE_SCOPE_MISMATCH', 'Chrome could not verify this cookie belongs to the current page partition.');
+                    await this._authorize();
+                    this._current(record);
+                    const currentTab = await this._tab(record.tabId);
+                    this._current(record);
+                    if (currentTab.url !== pageUrl) fail('COOKIE_SCOPE_MISMATCH', 'The page changed while verifying the cookie partition.');
+                    this._cookieCommand(params.method, cookie, currentTab);
+                    if (settled) fail('DEBUGGER_TIMEOUT', 'The command expired before the cookie could be deleted.');
+                }
                 // Do not serialize CDP commands: Debugger.resume must get through
                 // even while an evaluation/navigation command is blocked by pause.
                 const result = await this._invoke(this.chrome.debugger, 'sendCommand',
                     [{ tabId: record.tabId }, params.method, params.params || {}], 'CDP_COMMAND_FAILED');
                 this._current(record);
+                if (params.method === 'Storage.getCookies' || params.method === 'Network.getCookies') return this._cookieMetadata(result, tab);
                 return result || {};
             })();
             return this._cancellable(record, work, timeoutMs).finally(() => { settled = true; });

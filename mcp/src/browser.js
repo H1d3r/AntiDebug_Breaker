@@ -4,8 +4,10 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
 import { ExtensionBrowser } from './extension-browser.js';
+import { clearCookies } from './cookies.js';
 
 const MAX_EVENTS = 1500;
+const MAX_OPERATION_RESULTS = 50;
 const MAX_REQUESTS = 500;
 const MAX_SCRIPTS = 2000;
 const MAX_TEXT = 1_000_000;
@@ -68,11 +70,12 @@ function snapshotInPage({ prefix, maxElements, maxTextLength }) {
   globalThis.__adbMcpElements = store;
   const nodes = document.querySelectorAll('a,button,input,textarea,select,summary,[role="button"],[role="link"],[contenteditable="true"],[tabindex]');
   const elements = [];
+  let elementsTruncated = false;
   for (const node of nodes) {
-    if (elements.length >= maxElements) break;
     const rect = node.getBoundingClientRect();
     const style = getComputedStyle(node);
     if (!rect.width || !rect.height || style.visibility === 'hidden' || style.display === 'none') continue;
+    if (elements.length >= maxElements) { elementsTruncated = true; break; }
     const ref = `${prefix}:e${elements.length + 1}`;
     store.set(ref, node);
     const label = node.getAttribute('aria-label') || node.labels?.[0]?.textContent || node.getAttribute('title') || '';
@@ -85,7 +88,7 @@ function snapshotInPage({ prefix, maxElements, maxTextLength }) {
   }
   const text = document.body?.innerText || '';
   return { url: location.href, title: document.title, text: text.slice(0, maxTextLength),
-    textTruncated: text.length > maxTextLength, elements, elementsTruncated: elements.length >= maxElements };
+    textTruncated: text.length > maxTextLength, elements, elementsTruncated };
 }
 
 function prepareElementInPage({ ref, action, replace }) {
@@ -164,6 +167,7 @@ export class BrowserController extends EventEmitter {
     this.connectionId = null; this.connectionGeneration = 0; this.disconnecting = null;
     this.transport = null; this.bound = new Map(); this.binding = new Map();
     this.events = []; this.nextCursor = 1; this.eventLimit = bounded(eventLimit, MAX_EVENTS, 10, 10000);
+    this.operationResults = new Map();
     this._bridgeDisconnected = () => { void this._clearBindings('extension_disconnected'); };
     this._bridgeConnected = () => { void this._clearBindings('extension_reconnected'); };
     this._bridgeEvent = envelope => {
@@ -502,10 +506,19 @@ export class BrowserController extends EventEmitter {
       targetId: state?.targetId ?? null, documentId: state?.connectionId ? this._documentId(state) : null, source, event, data };
     this.events.push(entry);
     if (this.events.length > this.eventLimit) this.events.splice(0, this.events.length - this.eventLimit);
+    if (event === 'operation.settled') remember(this.operationResults, data.operationId, entry, MAX_OPERATION_RESULTS);
     this.emit('event', entry);
   }
 
-  readEvents({ cursor = 0, limit = 100, tabId } = {}) {
+  readEvents({ cursor = 0, limit = 100, tabId, operationId } = {}) {
+    if (operationId !== undefined) {
+      const entry = this.operationResults.get(operationId);
+      const completed = entry && (tabId === undefined || entry.tabId === tabId);
+      const state = [...this.bound.values()].find(state => state.mutation?.id === operationId && (tabId === undefined || state.tabId === tabId));
+      return { operationId, status: completed ? 'settled' : state ? 'pending' : 'unavailable',
+        operationPending: completed ? false : state ? true : null,
+        events: completed ? [entry] : [], retainedLimit: MAX_OPERATION_RESULTS };
+    }
     const first = this.events[0]?.cursor ?? this.nextCursor;
     const last = this.nextCursor - 1;
     const selected = this.events.filter(event => event.cursor > Number(cursor) && (tabId === undefined || event.tabId === tabId));
@@ -525,31 +538,33 @@ export class BrowserController extends EventEmitter {
     }
     const commands = { 'page.navigate': this._navigate, 'page.snapshot': this._snapshot,
       'page.interact': this._interact, 'page.screenshot': this._screenshot,
-      debug: this._debug, source: this._source, evaluate: this._evaluate, network: this._network };
+      debug: this._debug, source: this._source, evaluate: this._evaluate, network: this._network, 'cookies.clear': this._clearCookies };
     if (!commands[method]) throw new BrowserError('UNKNOWN_METHOD', `Unknown browser method: ${method}`);
     // Evaluation on an already paused frame must remain available while an input
     // or navigation operation waits for resume. It does not replace that owner.
-    const controlsPage = ['page.navigate', 'page.interact', 'evaluate'].includes(method) && !(method === 'evaluate' && state.paused);
+    const controlsPage = ['page.navigate', 'page.interact', 'evaluate', 'cookies.clear'].includes(method) && !(method === 'evaluate' && state.paused);
     if (controlsPage && state.mutation) throw new BrowserError('TARGET_BUSY', `A ${state.mutation.method} operation is still in progress. Debug pause/resume and paused-frame evaluation remain available.`,
       { operationPending: true, operationId: state.mutation.id, tabId: state.tabId });
-    const operation = controlsPage ? { id: randomUUID(), method, pending: 0, wrapperSettled: false, reportedPending: false } : null;
+    const operation = controlsPage ? { id: randomUUID(), method, pending: 0, wrapperSettled: false, reportedPending: false,
+      documentId: this._documentId(state) } : null;
     if (operation) state.mutation = operation;
-    const task = Promise.resolve().then(() => commands[method].call(this, state, params));
+    const task = Promise.resolve().then(() => commands[method].call(this, state, params, operation));
     if (operation) task.then(() => this._finishOperation(state, operation), () => this._finishOperation(state, operation));
     try {
       const result = method === 'page.interact' ? await this._interruptible(state, task, 15000, operation) : await task;
       if (result && typeof result === 'object' && Object.hasOwn(result, 'operationPending')) {
         result.operationPending = Boolean(state.mutation);
-        result.operationId = state.mutation?.id ?? null;
+        result.operationId = operation?.reportedPending ? operation.id : state.mutation?.id ?? null;
         result.pendingMethod = state.mutation?.method ?? null;
       }
       return result;
     } catch (error) {
       if (operation && (error.code === 'TIMEOUT' || /timed?\s*out/i.test(error.message))) {
         operation.reportedPending = true;
+        this._publishOperation(state, operation);
         error.details = { ...error.details, operationPending: state.mutation === operation,
           operationId: operation.id, tabId: state.tabId, mayHaveExecuted: true,
-          guidance: 'Submitted browser work is not rolled back by a timeout. Do not retry while operationPending is true; debug controls remain available.' };
+          guidance: 'A timeout does not confirm cancellation. Query adb_get_events with this operationId before repeating work; debug controls remain available.' };
       }
       throw error;
     }
@@ -563,7 +578,16 @@ export class BrowserController extends EventEmitter {
   _releaseOperation(state, operation) {
     if (!operation.wrapperSettled || operation.pending > 0 || state.mutation !== operation) return;
     state.mutation = null;
-    if (operation.reportedPending) this._record(state, 'operation.settled', { operationId: operation.id, method: operation.method, operationPending: false });
+    operation.released = true;
+    this._publishOperation(state, operation);
+  }
+
+  _publishOperation(state, operation) {
+    if (!operation.released || !operation.reportedPending || operation.published) return;
+    operation.published = true;
+    this._record(state, 'operation.settled', { operationId: operation.id, method: operation.method,
+      documentId: operation.documentId, operationPending: false,
+      ...(operation.outcome ? { outcome: operation.outcome } : {}) });
   }
 
   _retainOperation(state, promise) {
@@ -889,9 +913,12 @@ export class BrowserController extends EventEmitter {
     }
     if (['resume', 'stepInto', 'stepOver', 'stepOut'].includes(action)) {
       this._callFrame(state, params.callFrameId);
+      const pauseEpoch = state.pauseEpoch;
       await state.session.send(`Debugger.${action}`);
       // Never overwrite a newer paused event produced by a fast single step.
-      return { accepted: true, action, ...this._pauseStatus(state) };
+      const stateChangeObserved = state.pauseEpoch !== pauseEpoch;
+      return { accepted: true, action, ...this._pauseStatus(state), stateChangeObserved,
+        ...(!stateChangeObserved ? { guidance: 'Command accepted, but no pause/resume state change has been observed yet. Pause fields may still describe the previous pause. Check adb_debug status or adb_get_events before repeating the action or reusing callFrameId.' } : {}) };
     }
     if (action === 'setBreakpoint') {
       if (state.breakpoints.size >= 1000) throw new BrowserError('BREAKPOINT_LIMIT', 'Remove existing MCP breakpoints before adding more (limit 1000).');
@@ -975,23 +1002,70 @@ export class BrowserController extends EventEmitter {
     throw new BrowserError('INVALID_ACTION', 'Use source list, get or search.');
   }
 
-  async _evaluate(state, params) {
+  async _evaluate(state, params, operation) {
     if (typeof params.expression !== 'string' || params.expression.length > 100000) throw new BrowserError('INVALID_EXPRESSION', 'expression must be a string of at most 100000 characters.');
     const timeout = bounded(params.timeoutMs, 5000, 100, 30000);
     const onFrame = Boolean(params.callFrameId || state.paused);
+    const frame = onFrame ? this._callFrame(state, params.callFrameId) : null;
+    if (onFrame && params.awaitPromise === true) {
+      throw new BrowserError('AWAIT_PROMISE_UNSUPPORTED', 'Paused call-frame evaluation does not support awaitPromise:true. The expression was not executed. Use awaitPromise:false for synchronous inspection; asynchronous work requires explicitly resuming the page first.',
+        { expressionExecuted: false });
+    }
     const command = onFrame ? 'Debugger.evaluateOnCallFrame' : 'Runtime.evaluate';
-    const args = { expression: params.expression, returnByValue: params.returnByValue !== false, objectGroup: 'antidebug-mcp',
-      ...(onFrame ? { callFrameId: this._callFrame(state, params.callFrameId).callFrameId } : { awaitPromise: Boolean(params.awaitPromise), timeout }) };
-    const pending = this._retainOperation(state, state.session.send(command, args));
+    const args = { expression: params.expression, returnByValue: params.returnByValue !== false, objectGroup: 'antidebug-mcp', timeout,
+      ...(onFrame ? { callFrameId: frame.callFrameId } : { awaitPromise: Boolean(params.awaitPromise) }) };
+    const documentId = this._documentId(state);
+    // Capture the owning operation, not state.mutation: paused-frame inspection
+    // may run while another evaluation or navigation owns the page.
+    const pending = this._retainOperation(state, Promise.resolve().then(() => state.session.send(command, args)).then(response => {
+      const result = { result: remoteValue(response.result), exceptionDetails: safeValue(response.exceptionDetails),
+        documentId, paused: Boolean(state.paused) };
+      if (operation) operation.outcome = { status: response.exceptionDetails ? 'exception' : 'succeeded', value: safeValue(result, 65536) };
+      return result;
+    }, error => {
+      if (operation) operation.outcome = { status: 'error', mayHaveExecuted: true,
+        error: { code: trim(error.code || 'OPERATION_FAILED', 256), message: trim(error.message || String(error)), details: safeValue(error.details) } };
+      throw error;
+    }));
     let handler;
     const paused = new Promise(resolve => { handler = () => resolve({ interrupted: true, reason: 'paused', pause: this._pauseStatus(state), ...this._pendingOperation(state) });
       if (!onFrame) state.emitter.once('Debugger.paused', handler); });
     try {
-      const result = await timed(Promise.race([pending, paused]), timeout + 1500);
-      if (result.interrupted) return result;
-      return { result: remoteValue(result.result), exceptionDetails: safeValue(result.exceptionDetails),
-        documentId: this._documentId(state), paused: Boolean(state.paused) };
+      return await timed(Promise.race([pending, paused]), timeout + 1500);
     } finally { state.emitter.off('Debugger.paused', handler); }
+  }
+
+  async _clearCookies(state, _params, operation) {
+    const connectionId = this.connectionId;
+    const browser = this.browser;
+    const initialUrl = state.page.url();
+    const initialLoader = state.loaderId;
+    const assertCurrent = () => {
+      if (state.closed || this.bound.get(state.tabId) !== state || this.browser !== browser ||
+          this.connectionId !== connectionId || state.identity !== this._bridgeIdentity()) {
+        throw new BrowserError('CONNECTION_CHANGED', 'The cookie-cleanup target or connection changed.');
+      }
+      if (state.page.url() !== initialUrl || state.loaderId !== initialLoader) {
+        throw new BrowserError('DOCUMENT_CHANGED', 'The page navigated during cookie clearing. No further cookies will be deleted.');
+      }
+    };
+    assertCurrent();
+    let chromeMajor;
+    if (this.transport === 'extension') {
+      const status = await this.bridge.request('debugger.status', {}, { timeoutMs: 5000 });
+      chromeMajor = status?.chromeMajorVersion;
+    } else {
+      const version = await timed(browser.version(), 5000);
+      chromeMajor = Number(/(?:HeadlessChrome|Chrome)\/(\d+)/.exec(version)?.[1]);
+    }
+    assertCurrent();
+    // A timed-out deletion may still finish in Chrome. Retain that command so a
+    // new page mutation cannot race it, and expose the pending operation normally.
+    const result = await clearCookies({ chromeMajor, assertCurrent,
+      send: (method, params) => timed(this._retainOperation(state, state.session.send(method, params)), 7000) });
+    if (operation) operation.outcome = { status: 'succeeded', value: safeValue(result, 65536) };
+    const pending = operation?.pending > 0 ? this._pendingOperation(state) : { operationPending: false };
+    return { tabId: state.tabId, ...result, reloaded: false, ...pending };
   }
 
   async _network(state, params) {

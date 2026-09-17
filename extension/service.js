@@ -1,14 +1,15 @@
 (function (root, factory) {
     const policy = typeof module === 'object' && module.exports ? require('./policy.js') : root.ADBPolicy;
-    const api = factory(policy);
+    const userScripts = typeof module === 'object' && module.exports ? require('./user-scripts.js') : root.ADBUserScripts;
+    const api = factory(policy, userScripts);
     if (typeof module === 'object' && module.exports) module.exports = api;
     else root.ADBService = api;
-})(globalThis, function (P) {
+})(globalThis, function (P, U) {
     'use strict';
     const REVISION = 'adb_revision';
     const SESSION = 'adb_browser_session';
     const TARGETS = 'adb_documents';
-    const METHODS = ['capabilities', 'pages.list', 'scripts.list', 'scripts.prepare', 'state.get', 'scripts.set', 'hooks.set', 'mode.set', 'routes.get', 'page.mark'];
+    const METHODS = ['capabilities', 'pages.list', 'scripts.list', 'scripts.prepare', 'state.get', 'scripts.set', 'hooks.set', 'mode.set', 'routes.get', 'page.mark', 'library.list', 'library.get', 'library.update', 'library.delete', 'library.setEnabled', 'library.manage'];
     const DEBUGGER_METHODS = ['debugger.status', 'debugger.attach', 'debugger.command', 'debugger.detach', 'debugger.detachAll'];
     const uid = () => globalThis.crypto.randomUUID();
     const modeOf = data => data.antidebug_mode === 'global' ? 'global' : 'standard';
@@ -26,6 +27,7 @@
             this.chrome = chrome;
             this.catalog = catalog;
             this.emit = options.emit || (() => {});
+            this.scriptLibrary = new U.UserScriptLibrary(chrome, { emit: this.emit });
             this.debuggerController = options.debuggerController;
             this.now = options.now || Date.now;
             this.fetch = options.fetch || globalThis.fetch.bind(globalThis);
@@ -48,6 +50,7 @@
             const data = await this.chrome.storage.local.get(null);
             try { await this.reconcile(data); }
             catch (error) { this.registrationError = P.serializeError(error); }
+            await this.scriptLibrary.ready;
         }
         exclusive(work) {
             const next = this.queue.then(() => this.ready).then(work);
@@ -465,7 +468,7 @@
             const record = await this.rememberDocument(tab.id, result.documentId, result.result.href);
             return { ...this.target(record), ...result.result };
         }
-        async execute(method, params = {}) {
+        async execute(method, params = {}, context = {}) {
             if (method === 'pages.create') {
                 if (!P.object(params)) P.fail('INVALID_PARAMS', 'params must be an object.');
                 if (!this.debuggerController) P.fail('DEBUGGER_UNAVAILABLE', 'This extension does not support browser control.');
@@ -475,6 +478,67 @@
             }
             await this.ready;
             if (!P.object(params)) P.fail('INVALID_PARAMS', 'params must be an object.');
+            if (method === 'library.list') {
+                if (Object.keys(params).length) P.fail('INVALID_PARAMS', '脚本库列表不接受额外参数。');
+                // Trusted extension pages can inspect metadata without an Agent session.
+                return this.scriptLibrary.execute({ action: 'list' });
+            }
+            if (method === 'library.get' || method === 'library.update') {
+                if (context.source !== 'extension') P.fail('FORBIDDEN', '查看和编辑脚本仅接受扩展页面的操作。');
+                const updating = method === 'library.update';
+                const allowed = updating ? ['id', 'code', 'name', 'matches', 'expectedRevision'] : ['id'];
+                if (Object.keys(params).some(key => !allowed.includes(key)) ||
+                    (updating && (!['code', 'name', 'matches'].some(key => P.own(params, key)) ||
+                        !Number.isSafeInteger(params.expectedRevision) || params.expectedRevision < 0))) {
+                    P.fail('INVALID_PARAMS', updating ? '请提供脚本 id、当前脚本库 expectedRevision，以及 code、name、matches 中至少一项，不接受其他参数。' : '查看脚本仅接受 id 参数。');
+                }
+                const current = await this.scriptLibrary.execute({ action: 'get', id: params.id });
+                if (!updating) return current;
+                if (current.revision !== params.expectedRevision) {
+                    P.fail('REVISION_CONFLICT', '脚本库已改变，请读取后重试。', { expectedRevision: params.expectedRevision, actualRevision: current.revision });
+                }
+                // Edit only an existing entry. Retain the caller's revision so a queued
+                // Agent write or deletion between this read and save cannot be overwritten.
+                const script = current.script;
+                return this.scriptLibrary.execute({ action: 'save', id: script.id,
+                    code: P.own(params, 'code') ? params.code : script.code,
+                    name: P.own(params, 'name') ? params.name : script.name,
+                    matches: P.own(params, 'matches') ? params.matches : script.matches,
+                    enabled: script.enabled, expectedRevision: params.expectedRevision });
+            }
+            if (method === 'library.delete') {
+                if (context.source !== 'extension') P.fail('FORBIDDEN', '删除脚本仅接受扩展页面的操作。');
+                if (Object.keys(params).some(key => !['id', 'expectedRevision'].includes(key)) ||
+                    !Number.isSafeInteger(params.expectedRevision) || params.expectedRevision < 0) {
+                    P.fail('INVALID_PARAMS', '请提供脚本 id 和当前脚本库 expectedRevision，不接受额外参数。');
+                }
+                return this.scriptLibrary.execute({ action: 'delete', id: params.id, expectedRevision: params.expectedRevision });
+            }
+            if (method === 'library.setEnabled') {
+                if (context.source !== 'extension') P.fail('FORBIDDEN', '此开关仅接受扩展页面的操作。');
+                if (Object.keys(params).some(key => !['id', 'enabled', 'expectedRevision'].includes(key)) ||
+                    typeof params.enabled !== 'boolean' || !Number.isSafeInteger(params.expectedRevision) || params.expectedRevision < 0) {
+                    P.fail('INVALID_PARAMS', '请提供脚本 id、布尔值 enabled 和当前脚本库 expectedRevision，不接受额外参数。');
+                }
+                // Native popup authorization is independent of a paired Agent session.
+                // Reuse the library queue and revision check without exposing save/delete.
+                return this.scriptLibrary.execute({ action: params.enabled ? 'enable' : 'disable',
+                    id: params.id, expectedRevision: params.expectedRevision });
+            }
+            if (method === 'library.manage') {
+                if (context.source !== 'mcp') P.fail('FORBIDDEN', '脚本库仅接受已配对 Agent 的 MCP 操作。');
+                const beforeWrite = async () => {
+                    const data = await this.chrome.storage.local.get('adb_browser_control');
+                    if (context.isCurrent && !context.isCurrent()) {
+                        P.fail('CONNECTION_CHANGED', 'MCP 连接已停止或配对已改变，本次脚本库修改已取消。');
+                    }
+                    if (data.adb_browser_control?.enabled !== true) {
+                        P.fail('BROWSER_CONTROL_DISABLED', '请先在扩展 MCP 页面启用或重新启用浏览器控制，再修改脚本库。');
+                    }
+                };
+                if (!['list', 'get'].includes(params.action)) await beforeWrite();
+                return this.scriptLibrary.execute(params, { beforeWrite });
+            }
             // Debugger commands are independent: resume must work while evaluate is pending.
             if (DEBUGGER_METHODS.includes(method)) {
                 if (!this.debuggerController) P.fail('DEBUGGER_UNAVAILABLE', 'This extension does not support browser control.');
@@ -489,6 +553,7 @@
                 case 'capabilities': return { protocolVersion: 1, version: this.chrome.runtime.getManifest().version, extensionId: this.chrome.runtime.id,
                     browserSessionId: this.browserSessionId, methods: this.debuggerController ? [...METHODS, 'pages.create', ...DEBUGGER_METHODS] : METHODS,
                     debugger: this.debuggerController ? await this.debuggerController.status() : { available: false },
+                    scriptLibrary: await this.scriptLibrary.status(),
                     frames: 'top', hookConfigScope: 'global', requiresReloadForChanges: true };
                 case 'pages.list': return { browserSessionId: this.browserSessionId, pages: (await this.chrome.tabs.query({})).map(tab => ({
                     tabId: tab.id, windowId: tab.windowId, url: tab.url, title: tab.title, active: tab.active, status: tab.status,
@@ -502,6 +567,7 @@
             }
         }
         async reconcileExternal(changes) {
+            await this.scriptLibrary.reconcileExternal(changes);
             if (P.own(changes, REVISION)) return;
             const relevant = Object.keys(changes).some(key => key === 'antidebug_mode' || key === 'global_scripts' ||
                 (isHost(key) && Array.isArray(changes[key].newValue)) || this.catalog.some(script => `${script.id}_config` === key));

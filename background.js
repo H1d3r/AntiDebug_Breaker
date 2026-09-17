@@ -1,5 +1,5 @@
 /* The background owns configuration rules; popup and the local MCP bridge use the same API. */
-importScripts('extension/policy.js', 'extension/service.js', 'extension/bridge.js', 'extension/debugger.js');
+importScripts('extension/policy.js', 'extension/user-scripts.js', 'extension/service.js', 'extension/bridge.js', 'extension/debugger.js');
 
 let bridge;
 // Register debugger lifecycle listeners synchronously when the MV3 worker starts.
@@ -54,7 +54,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     serviceReady.then(async service => {
         if (command) {
-            const result = await service.execute(message.method, message.params || {});
+            const result = await service.execute(message.method, message.params || {}, { source: 'extension' });
             if (message.method === 'capabilities') result.bridge = bridge.status();
             return { ok: true, result };
         }
@@ -90,6 +90,10 @@ chrome.tabs.onActivated.addListener(() => {
 });
 chrome.runtime.onStartup.addListener(() => { serviceReady.catch(() => {}); });
 chrome.runtime.onInstalled.addListener(async () => {
+    // Chrome clears user-script registrations on extension updates. Rebuild them
+    // from the independent library, even when the MCP bridge is disabled.
+    try { await (await serviceReady).scriptLibrary.reconcile(); }
+    catch (error) { console.warn('[AntiDebug] Script library restore failed:', error.message); }
     try {
         const key = 'Antidebug_breaker_welcome_redirected';
         const result = await chrome.storage.local.get(key);

@@ -6,7 +6,7 @@
 
 | ID | 实际用途与边界 |
 | --- | --- |
-| `Bypass_Debugger` | 在 `eval`、`Function`、`Function.prototype.constructor` 的字符串参数中删除 `debugger` 子串。没有清除已加载 JS 中直接书写的静态断点；字符串替换也可能改变字符串字面量或标识符。 |
+| `Bypass_Debugger` | 在 `eval`、`Function`、`Function.prototype.constructor` 的字符串参数中删除 `debugger` 子串。没有清除已加载 JS 中直接书写的静态断点；字符串替换也可能改变字符串字面量或标识符。包装后的 `eval` 经别名调用原生 `eval`，不再保留直接求值时的调用处局部作用域，可能引发 `ReferenceError` 或行为变化；验证时检查相关报错和目标功能。 |
 | `hook_log` | 防止普通赋值覆盖 `console.log/trace/groupCollapsed/groupEnd` 及 `window.console`。不等于恢复所有已被改写的 console 方法。 |
 | `hook_table` | 将 `console.table` 置空，针对依赖它调用耗时的检测。不是通用时间差绕过。 |
 | `hook_clear` | 禁用 `console.clear`，避免控制台输出被清掉。 |
