@@ -1,0 +1,4 @@
+{
+  "extension_name": { "message": "AntiDebug Breaker" },
+  "extension_description": { "message": "JavaScript 逆向分析工具：反调试、API Hook、Vue/React 路由收集，以及通过 MCP 进行 Agent 浏览器控制。" }
+}

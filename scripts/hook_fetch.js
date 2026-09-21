@@ -14,6 +14,17 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_fetch")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
     const SCRIPT_ID = 'hook_fetch';
 
     function clear_Antidebug(id) {
@@ -33,7 +44,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_fetch")) {
 
         window.fetch = function () {
             if (flag === "0") {
-                console.log("捕获到fetch请求：\n");
+                console.log(adbLogText("log_fetch_request", "Captured fetch request:\n"));
                 for (let i = 0; i < arguments.length; i++) {
                     console.log(arguments[i]);
                 }

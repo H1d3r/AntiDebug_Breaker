@@ -1,13 +1,14 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await ADB_I18N.ready;
     // ========== 保存结果与错误提示 ==========
     let toastTimer;
-    function showToast(message = '已保存') {
+    function showToast(message = ADB_I18N.t("ui_saved")) {
         const toast = document.getElementById('toast');
         if (!toast) return;
         
         const toastMessage = toast.querySelector('.toast-message');
         if (toastMessage) {
-            toastMessage.textContent = message;
+            ADB_UI.text(toastMessage, message);
         }
         
         toast.classList.add('show');
@@ -33,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             localStorage.setItem('antidebug_base_mode', mode);
         } catch (e) {
-            console.warn('保存base模式偏好失败:', e);
+            console.warn(ADB_I18N.t("ui_could_not_save_base_mode_preference"), e);
         }
     }
     // ========================================================
@@ -159,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateModeUI() {
         globalModeToggle.disabled = false;
         globalModeToggle.checked = isGlobalMode;
-        modeText.textContent = isGlobalMode ? '全局模式' : '标准模式';
+        ADB_UI.bind(modeText, () => isGlobalMode ? ADB_I18N.t("ui_global_mode") : ADB_I18N.t("ui_standard_mode"), "textContent");
     }
 
     // 更新反反Hook检测开关UI状态
@@ -178,8 +179,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // ADB_COMMAND. Bound this read without retrying or timing out writes.
             let timer;
             const unavailable = () => Object.assign(new Error(method.startsWith('library.')
-                ? '扩展后台未响应脚本库查询，请重试；如持续失败，请重新加载扩展。'
-                : '扩展后台未响应状态查询，可能仍在运行旧版后台。'), { code: 'BACKGROUND_UNAVAILABLE' });
+                ? ADB_I18N.t("ui_the_extension_background_did_not_answer_the_library_query_retry_o")
+                : ADB_I18N.t("ui_the_extension_background_did_not_answer_the_status_query_an_older")), { code: 'BACKGROUND_UNAVAILABLE' });
             try {
                 reply = await Promise.race([request, new Promise((_, reject) => {
                     timer = setTimeout(() => reject(unavailable()), 5000);
@@ -190,9 +191,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!reply?.ok) {
             const error = reply?.error;
             const message = error?.code === 'UNSUPPORTED_SCOPE'
-                ? '当前页面不支持按网站设置脚本。请先打开 HTTP/HTTPS 网站；本地文件请使用全局模式。'
-                : error?.message || '扩展服务没有响应';
-            throw Object.assign(new Error(message), { code: error?.code, details: error?.details });
+                ? ADB_I18N.t("ui_per_site_scripts_are_unavailable_on_this_page_open_an_http_https_")
+                : ADB_I18N.error(error) || ADB_I18N.t("ui_the_extension_service_did_not_respond");
+            throw Object.assign(new Error(message), { code: error?.code, details: error?.details, messageKey: error?.messageKey, messageParams: error?.messageParams });
         }
         return reply.result;
     }
@@ -219,25 +220,34 @@ document.addEventListener('DOMContentLoaded', () => {
         globalModeToggle.disabled = true;
         if (antiAntiHookToggle) antiAntiHookToggle.disabled = true;
         stateNotice.hidden = false;
-        stateNoticeText.textContent = '无法读取插件状态。若刚替换新版文件，请重新加载扩展后再刷新网页。';
-        stateNoticeErrors.textContent = `${error.message || String(error)}\n在 chrome://extensions 中找到 AntiDebug Breaker，点击“重新加载”，然后重新打开插件。原有配置会保留。`;
+        ADB_UI.bind(stateNoticeText, () => ADB_I18N.t("ui_could_not_read_extension_status_if_you_just_replaced_its_files_re"), "textContent");
+        ADB_UI.bind(stateNoticeErrors, () => ADB_I18N.t("ui_0_open_chrome_extensions_find_antidebug_breaker_select_reload_the", [ADB_I18N.error(error) || String(error)]), "textContent");
         stateNoticeDetails.hidden = false;
         stateNoticeDetails.open = true;
     }
 
     function renderStateNotice(state) {
-        const errors = [];
-        if (state.registrationError) errors.push(`脚本注册失败：${state.registrationError.message || state.registrationError.code || '请重新保存配置'}`);
-        for (const [id, error] of Object.entries(state.configErrors || {})) {
-            const name = allScripts.find(script => script.id === id)?.name || id;
-            errors.push(`${name}：${error.message || error.code || '配置无效，请修正'}`);
-        }
+        const getErrors = () => {
+            const errors = [];
+            if (state.registrationError) errors.push(ADB_I18N.t("ui_script_registration_failed_0", [ADB_I18N.error(state.registrationError) || state.registrationError.code || ADB_I18N.t("ui_save_the_settings_again")]));
+            for (const [id, error] of Object.entries(state.configErrors || {})) {
+                const nameKey = `catalog_${id}_name`;
+                const name = ADB_I18N.has(nameKey) ? ADB_I18N.t(nameKey) : id;
+                errors.push(`${name}：${ADB_I18N.error(error) || error.code || ADB_I18N.t("ui_invalid_settings_please_correct_them")}`);
+            }
+            return errors;
+        };
+        const errors = getErrors();
         stateNotice.hidden = !errors.length;
-        stateNoticeText.textContent = errors.length ? '部分配置未生效，请查看错误并重新保存。' : '';
-        stateNoticeErrors.textContent = errors.join('\n');
+        ADB_UI.bind(stateNoticeText, () => errors.length ? ADB_I18N.t("ui_some_settings_could_not_be_applied_review_the_errors_and_save_aga") : '', "textContent");
+        ADB_UI.bind(stateNoticeErrors, () => getErrors().join('\n'), "textContent");
         stateNoticeDetails.hidden = !errors.length;
         if (!errors.length) stateNoticeDetails.open = false;
     }
+
+    document.addEventListener('adb:languagechange', () => {
+        for (const item of scriptsGrid.querySelectorAll('.script-item')) updateDescriptionOverflow(item);
+    });
 
     function scheduleStateRefresh() {
         clearTimeout(stateRefreshTimer);
@@ -308,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const result = await command("routes.get", { tabId: currentTab_obj.id, framework, rescan: true, timeoutMs: 2500 });
                 for (const item of result.results || []) if (item.data) acceptRoutes(item.framework, item.data);
-            } catch (error) { console.warn("路由数据暂不可用:", error.message); }
+            } catch (error) { console.warn(ADB_I18N.t("ui_route_data_is_temporarily_unavailable"), error.message); }
         })();
         routerRequests.set(key, request);
         try { await request; } finally { routerRequests.delete(key); }
@@ -342,8 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     searchInput.addEventListener("input", event => {
         const term = event.target.value.toLowerCase();
-        let scripts = getScriptsForCurrentTab().filter(script => script.name.toLowerCase().includes(term) ||
-            (currentTab === "antidebug" && script.description.toLowerCase().includes(term)));
+        let scripts = getScriptsForCurrentTab().filter(script => ADB_UI.matchesScript(script, term, currentTab === "antidebug"));
         if (currentTab === "antidebug") renderAntiDebugScripts(scripts);
         else if (currentTab === "hook") renderHookScripts(applyHookFilter(scripts));
     });
@@ -542,17 +551,17 @@ document.addEventListener('DOMContentLoaded', () => {
         setLibraryBusy();
         libraryFeedback.hidden = false;
         libraryFeedback.classList.remove('library-error');
-        libraryFeedback.textContent = '正在读取脚本库…';
+        ADB_UI.bind(libraryFeedback, () => ADB_I18N.t("ui_loading_script_library"), "textContent");
         try {
             const result = await command('library.list');
-            if (!Array.isArray(result?.scripts) || !result.status) throw new Error('后台返回的脚本库数据不完整，请重新加载扩展后重试。');
+            if (!Array.isArray(result?.scripts) || !result.status) throw new Error(ADB_I18N.t("ui_the_background_returned_incomplete_library_data_reload_the_extens"));
             renderLibrary(result);
             libraryLoaded = true;
             libraryFeedback.hidden = true;
         } catch (error) {
             libraryFeedback.classList.add('library-error');
-            libraryFeedback.textContent = (libraryLoaded ? '刷新失败，以下保留上次读取的结果。' : '脚本库读取失败。') +
-                (error.code === 'METHOD_NOT_FOUND' ? '请重新加载扩展后重试。' : error.message || '请点击刷新重试。');
+            ADB_UI.bind(libraryFeedback, () => (libraryLoaded ? ADB_I18N.t("ui_refresh_failed_previously_loaded_results_are_shown_below") : ADB_I18N.t("ui_could_not_load_the_script_library")) +
+                (error.code === 'METHOD_NOT_FOUND' ? ADB_I18N.t("ui_reload_the_extension_and_retry") : ADB_I18N.error(error) || ADB_I18N.t("ui_select_refresh_to_retry")), "textContent");
         } finally {
             libraryLoading = false;
             setLibraryBusy();
@@ -580,15 +589,15 @@ document.addEventListener('DOMContentLoaded', () => {
         setLibraryBusy();
         try {
             const result = await command('library.setEnabled', { id: script.id, enabled, expectedRevision: revision });
-            if (result?.saved !== true) throw new Error('未能确认开关已保存，请刷新列表检查状态。');
+            if (result?.saved !== true) throw new Error(ADB_I18N.t("ui_could_not_confirm_the_toggle_was_saved_refresh_the_list_to_check"));
             showToast(result.registrationUpdated
-                ? (enabled ? '已启用，匹配页面下次加载时生效。' : '已停用，已打开页面需刷新才能清除原脚本效果。')
-                : '开关已保存，暂时无法确认注册已同步，请查看下方错误提示。');
+                ? (enabled ? ADB_I18N.t("ui_enabled_runs_on_the_next_matching_page_load") : ADB_I18N.t("ui_disabled_reload_open_pages_to_remove_the_script_s_effects"))
+                : ADB_I18N.t("ui_toggle_saved_but_registration_synchronization_is_unconfirmed_chec"));
         } catch (error) {
-            showToast(error.code === 'REVISION_CONFLICT' ? '脚本库已被更新，本次未更改。请查看最新状态后重试。'
-                : error.code === 'SCRIPT_NOT_FOUND' ? '脚本已被删除，正在刷新列表。'
-                : error.code === 'METHOD_NOT_FOUND' ? '请重新加载扩展后再使用脚本开关。'
-                : error.message || '开关保存失败，请重试。');
+            showToast(error.code === 'REVISION_CONFLICT' ? ADB_I18N.t("ui_the_library_changed_so_nothing_was_updated_review_its_latest_stat")
+                : error.code === 'SCRIPT_NOT_FOUND' ? ADB_I18N.t("ui_the_script_was_deleted_refreshing_the_list")
+                : error.code === 'METHOD_NOT_FOUND' ? ADB_I18N.t("ui_reload_the_extension_to_use_script_toggles")
+                : ADB_I18N.error(error) || ADB_I18N.t("ui_could_not_save_the_toggle_please_retry"));
         } finally {
             libraryWriting = false;
             libraryDirty = true;
@@ -602,7 +611,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const addText = (parent, tag, className, text) => {
             const element = document.createElement(tag);
             element.className = className;
-            element.textContent = text;
+            if (['library-enabled', 'library-match-label', 'library-card-error', 'library-edit'].includes(className)) ADB_UI.text(element, text);
+            else ADB_UI.raw(element, text);
             parent.append(element);
             return element;
         };
@@ -619,7 +629,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const controls = document.createElement('div');
             controls.className = 'library-controls';
             heading.append(controls);
-            const enabled = addText(controls, 'span', 'library-enabled', script.enabled ? '已启用' : '已停用');
+            const enabled = addText(controls, 'span', 'library-enabled', script.enabled ? ADB_I18N.t("ui_enabled") : ADB_I18N.t("ui_disabled"));
             enabled.dataset.enabled = String(script.enabled);
             const toggle = document.createElement('label');
             toggle.className = 'switch library-switch';
@@ -628,7 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
             input.className = 'library-toggle';
             input.dataset.scriptId = script.id;
             input.setAttribute('role', 'switch');
-            input.setAttribute('aria-label', `启用脚本：${script.name}`);
+            ADB_UI.bind(input, () => ADB_I18N.t("ui_enable_script_0", [script.name]), "aria-label");
             input.checked = script.enabled;
             input.disabled = libraryLoading || libraryWriting;
             input.addEventListener('change', () => setLibraryEnabled(script, result.revision, input));
@@ -643,20 +653,20 @@ document.addEventListener('DOMContentLoaded', () => {
             matchHeading.className = 'library-match-heading';
             matchGroup.append(matchHeading);
             card.append(matchGroup);
-            addText(matchHeading, 'p', 'library-match-label', '匹配网站');
+            addText(matchHeading, 'p', 'library-match-label', ADB_I18N.t("ui_website_matches"));
             const matches = document.createElement('ul');
             matches.className = 'library-matches';
             for (const pattern of script.matches) addText(matches, 'li', '', pattern);
             matchGroup.append(matches);
-            if (script.registrationError) addText(card, 'p', 'library-card-error', `注册错误：${script.registrationError.message}`);
+            if (script.registrationError) addText(card, 'p', 'library-card-error', ADB_I18N.t("ui_registration_error_0", [ADB_I18N.error(script.registrationError)]));
             const actions = document.createElement('div');
             actions.className = 'library-card-actions';
             card.append(actions);
-            const edit = addText(actions, 'button', 'library-edit', '查看 / 编辑');
+            const edit = addText(actions, 'button', 'library-edit', ADB_I18N.t("ui_view_edit"));
             edit.type = 'button';
             edit.dataset.scriptId = script.id;
             edit.disabled = libraryLoading || libraryWriting;
-            edit.setAttribute('aria-label', `查看或编辑脚本：${script.name}`);
+            ADB_UI.bind(edit, () => ADB_I18N.t("ui_view_or_edit_script_0", [script.name]), "aria-label");
             edit.setAttribute('aria-haspopup', 'dialog');
             edit.setAttribute('aria-controls', 'library-editor-dialog');
             edit.addEventListener('click', () => window.ADBLibraryEditor.open(script.id, command, scheduleLibraryRefresh));
@@ -664,13 +674,13 @@ document.addEventListener('DOMContentLoaded', () => {
             fragment.append(card);
         }
         libraryList.replaceChildren(fragment);
-        librarySummary.textContent = `共 ${result.scripts.length} 个`;
+        ADB_UI.bind(librarySummary, () => ADB_I18N.t("ui_0_total", [result.scripts.length]), "textContent");
         libraryEmpty.hidden = result.scripts.length !== 0;
         libraryNotice.hidden = result.status.available !== false && result.status.registrationUpdated !== false;
-        libraryNotice.textContent = result.status.available === false
-            ? `暂时无法同步脚本。${result.status.guidance || '请在扩展详情中检查“允许用户脚本”开关。'}恢复权限后，请点击上方“刷新”同步已保存的设置。`
+        ADB_UI.bind(libraryNotice, () => result.status.available === false
+            ? ADB_I18N.t("ui_scripts_cannot_currently_be_synchronized_0_after_restoring_permis", [ADB_I18N.translate(result.status.guidance) || ADB_I18N.t("ui_check_allow_user_scripts_in_the_extension_details")])
             : result.status.registrationUpdated === false
-                ? '脚本设置尚未同步：旧脚本可能仍会注入，新设置可能尚未生效。请查看错误并重试；必要时重新加载扩展。' : '';
+                ? ADB_I18N.t("ui_script_settings_are_not_synchronized_old_scripts_may_still_run_an") : '', "textContent");
     }
 
     function renderCurrentTab() {
@@ -679,8 +689,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentTab === 'scripts') refreshLibrary();
         mcpContent.style.display = currentTab === 'mcp' ? 'flex' : 'none';
         noResults.style.display = 'none';
-        document.querySelector('footer .hint').textContent = currentTab === 'mcp' ? '连接设置保存后即时生效'
-            : currentTab === 'scripts' ? '页面下次加载时生效' : '页面刷新后更改生效';
+        ADB_UI.bind(document.querySelector('footer .hint'), () => currentTab === 'mcp' ? ADB_I18N.t("ui_connection_settings_apply_when_saved")
+            : currentTab === 'scripts' ? ADB_I18N.t("ui_applies_on_the_next_page_load") : ADB_I18N.t("ui_reload_the_page_to_apply_changes"), "textContent");
 
         // Unknown state must not be presented as every saved script being off.
         // Settings and the library remain usable without page state.
@@ -760,6 +770,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 渲染反调试脚本（3列网格）
+    function updateDescriptionOverflow(item) {
+        const description = item.querySelector('.script-description');
+        const button = item.querySelector('.expand-description-btn');
+        if (!description || !button) return;
+        const previous = { display: description.style.display, webkitLineClamp: description.style.webkitLineClamp, overflow: description.style.overflow };
+        Object.assign(description.style, { display: 'block', webkitLineClamp: 'unset', overflow: 'visible' });
+        const height = description.scrollHeight;
+        const lineHeight = parseFloat(getComputedStyle(description).lineHeight) || 15.4;
+        Object.assign(description.style, previous);
+        button.style.display = height > lineHeight * 3 + 2 ? 'flex' : 'none';
+    }
+
     function renderAntiDebugScripts(scripts) {
         scriptsGrid.innerHTML = '';
         noResults.style.display = 'none';
@@ -779,12 +801,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const scriptItem = document.createElement('div');
             scriptItem.className = `script-item ${isEnabled ? 'active' : ''}`;
 
-            let description = script.description;
+            let description = ADB_UI.catalogSpan(script, "description");
 
             scriptItem.innerHTML = `
                 <div class="script-content">
                     <div class="script-header">
-                        <div class="script-name">${script.name}</div>
+                        <div class="script-name">${ADB_UI.catalogSpan(script, "name")}</div>
                         <label class="switch">
                             <input type="checkbox" ${isEnabled ? 'checked' : ''} data-id="${script.id}">
                             <span class="slider"></span>
@@ -811,36 +833,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // 🆕 检查描述是否需要展开按钮
             const descriptionEl = scriptItem.querySelector('.script-description');
             const expandBtn = scriptItem.querySelector('.expand-description-btn');
+            ADB_UI.bind(expandBtn, () => ADB_I18N.t('ui_expand_description'), 'aria-label');
             
             // 使用 setTimeout 确保 DOM 渲染完成后再检查
-            setTimeout(() => {
-                // 临时移除line-clamp限制来准确测量完整高度
-                const originalDisplay = descriptionEl.style.display;
-                const originalWebkitLineClamp = descriptionEl.style.webkitLineClamp;
-                const originalOverflow = descriptionEl.style.overflow;
-                
-                // 临时设置为block以获取完整高度
-                descriptionEl.style.display = 'block';
-                descriptionEl.style.webkitLineClamp = 'unset';
-                descriptionEl.style.overflow = 'visible';
-                
-                const fullHeight = descriptionEl.scrollHeight;
-                
-                // 恢复原始样式
-                descriptionEl.style.display = originalDisplay || '';
-                descriptionEl.style.webkitLineClamp = originalWebkitLineClamp || '';
-                descriptionEl.style.overflow = originalOverflow || '';
-                
-                // 计算3行的高度（line-height * 3）
-                const computedStyle = getComputedStyle(descriptionEl);
-                const lineHeight = parseFloat(computedStyle.lineHeight) || 15.4; // 默认值：11px * 1.4
-                const maxHeight = lineHeight * 3;
-                
-                // 如果完整高度超过3行高度，显示展开按钮
-                if (fullHeight > maxHeight + 2) { // 加2px容差
-                    expandBtn.style.display = 'flex';
-                }
-            }, 10);
+            setTimeout(() => updateDescriptionOverflow(scriptItem), 10);
 
             // 🆕 展开/收起按钮点击事件
             expandBtn.addEventListener('click', (e) => {
@@ -868,7 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const parentScripts = scripts.filter(script => !script.parentScript);
 
         if (parentScripts.length === 0 && scripts.length === 0) {
-            vueScriptsList.innerHTML = '<div class="empty-state">暂无 Vue 脚本</div>';
+            vueScriptsList.innerHTML = `<div class="empty-state">${ADB_UI.span("ui_no_vue_scripts")}</div>`;
             return;
         }
 
@@ -906,7 +902,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const parentScripts = scripts.filter(script => !script.parentScript);
 
         if (parentScripts.length === 0 && scripts.length === 0) {
-            reactScriptsList.innerHTML = '<div class="empty-state">暂无 React 脚本</div>';
+            reactScriptsList.innerHTML = `<div class="empty-state">${ADB_UI.span("ui_no_react_scripts")}</div>`;
             return;
         }
 
@@ -936,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scriptItem.dataset.scriptId = script.id;
 
         scriptItem.innerHTML = `
-            <div class="vue-script-name">${script.name}</div>
+            <div class="vue-script-name">${ADB_UI.catalogSpan(script, "name")}</div>
             <label class="vue-script-switch">
                 <input type="checkbox" ${isEnabled ? 'checked' : ''} data-id="${script.id}">
                 <span class="slider"></span>
@@ -947,7 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <line x1="12" y1="16" x2="12" y2="12"></line>
                     <line x1="12" y1="8" x2="12.01" y2="8"></line>
                 </svg>
-                <div class="tooltip">${script.description}</div>
+                <div class="tooltip">${ADB_UI.catalogSpan(script, "description")}</div>
             </div>
         `;
 
@@ -1006,7 +1002,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentTab === 'hook' && searchInput && searchInput.value.trim()) {
             const searchTerm = searchInput.value.toLowerCase();
             scripts = scripts.filter(script =>
-                script.name.toLowerCase().includes(searchTerm)
+                ADB_UI.matchesScript(script, searchTerm)
             );
         }
         
@@ -1015,7 +1011,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 🔧 修复：先批量加载所有配置，配置加载完成后再清空并渲染，避免闪烁
         if (scripts.length === 0) {
-            hookContent.innerHTML = '<div class="empty-state">暂无 Hook 脚本</div>';
+            hookContent.innerHTML = `<div class="empty-state">${ADB_UI.span("ui_no_hook_scripts")}</div>`;
             return;
         }
         
@@ -1072,13 +1068,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const value = config?.value ?? script.value ?? '';
             inputArea = `
                 <div class="hook-input-group">
-                    <label class="hook-input-label">固定值：</label>
+                    <label class="hook-input-label">${ADB_UI.span("ui_fixed_value")}</label>
                     <div class="hook-input-wrapper hook-value-input-wrapper">
                         <input type="text" class="hook-value-input" 
                                value="${escapeHtml(value)}" 
-                               placeholder="输入固定值后按Enter保存" 
+                               data-i18n-placeholder="ui_enter_a_fixed_value_and_press_enter_to_save" placeholder="${escapeHtml(ADB_I18N.t("ui_enter_a_fixed_value_and_press_enter_to_save"))}" 
                                ${!isEnabled ? 'disabled' : ''}>
-                        <div class="hook-value-tooltip">输入固定值后按Enter保存</div>
+                        <div class="hook-value-tooltip">${ADB_UI.span("ui_enter_a_fixed_value_and_press_enter_to_save")}</div>
                     </div>
                 </div>
             `;
@@ -1108,20 +1104,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 inputArea = `
                     <div class="hook-input-group">
                         <div class="hook-input-label-row">
-                            <label class="hook-input-label">关键字：</label>
+                            <label class="hook-input-label">${ADB_UI.span("ui_keywords")}</label>
                             <div class="hook-keyword-filter-switch">
                                 <label class="hook-keyword-filter-switch-label">
                                     <input type="checkbox" class="hook-keyword-filter-checkbox" ${keywordFilterEnabled ? 'checked' : ''} ${!isEnabled ? 'disabled' : ''} data-script-id="${script.id}">
                                     <span class="hook-keyword-filter-slider"></span>
                                 </label>
-                                <span class="hook-keyword-filter-label-text">检索关键字</span>
+                                <span class="hook-keyword-filter-label-text">${ADB_UI.span("ui_filter_keywords")}</span>
                             </div>
                         </div>
                         <div class="hook-keywords-container ${!keywordFilterEnabled ? 'keyword-filter-disabled' : ''}">
                             ${keywordList}
                             <div class="hook-input-wrapper">
                                 <input type="text" class="hook-keyword-input" 
-                                       placeholder="输入关键字后按Enter添加" 
+                                       data-i18n-placeholder="ui_type_a_keyword_and_press_enter" placeholder="${escapeHtml(ADB_I18N.t("ui_type_a_keyword_and_press_enter"))}" 
                                        ${!isEnabled || !keywordFilterEnabled ? 'disabled' : ''}>
                             </div>
                         </div>
@@ -1147,14 +1143,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         scriptItem.innerHTML = `
             <div class="hook-script-header">
-                <div class="hook-script-name">${script.name}</div>
+                <div class="hook-script-name">${ADB_UI.catalogSpan(script, "name")}</div>
                 <div class="vue-script-info">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"></circle>
                         <line x1="12" y1="16" x2="12" y2="12"></line>
                         <line x1="12" y1="8" x2="12.01" y2="8"></line>
                     </svg>
-                    <div class="tooltip">${script.description || '暂无描述'}</div>
+                    <div class="tooltip">${ADB_UI.catalogSpan(script, "description")}</div>
                 </div>
                 <label class="hook-main-switch">
                     <input type="checkbox" ${isEnabled ? 'checked' : ''} data-id="${script.id}">
@@ -1163,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             ${inputArea}
             <div class="hook-script-actions">
-                <span class="hook-action-label">开启</span>
+                <span class="hook-action-label">${ADB_UI.span("ui_enable")}</span>
                 ${switchesHtml}
             </div>
         `;
@@ -1196,11 +1192,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (value) {
                         // 保存固定值
                         const result = await saveHookConfigValue(script.id, value);
-                        if (result?.saved) showToast('已保存，刷新页面后生效');
+                        if (result?.saved) showToast(ADB_I18N.t("ui_saved_reload_the_page_to_apply"));
                     } else {
                         // 如果输入为空，清空固定值
                         const result = await saveHookConfigValue(script.id, '');
-                        if (result?.saved) showToast('已清空，刷新页面后生效');
+                        if (result?.saved) showToast(ADB_I18N.t("ui_cleared_reload_the_page_to_apply"));
                     }
                 }
             });
@@ -1477,8 +1473,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const routeCount = instance.routes?.length || 0;
             tabBtn.innerHTML = `
-                <div class="instance-tab-title">实例 ${index + 1}</div>
-                <div class="instance-tab-subtitle">Vue ${instance.vueVersion} · ${routeCount} 路由</div>
+                <div class="instance-tab-title">${ADB_UI.span("ui_instance_0", [index + 1])}</div>
+                <div class="instance-tab-subtitle">${ADB_UI.span("ui_vue_0_1_routes", [instance.vueVersion, routeCount])}</div>
             `;
             
             tabBtn.onclick = () => {
@@ -1723,10 +1719,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const routeCount = Array.isArray(instance.routes) ? instance.routes.length : 0;
             const modeLabel = instance.routerMode || instance.routerType || 'React';
             const title = getReactInstanceLabel(instance, index);
-            tabBtn.title = `${title} | ${routeCount} routes`;
+            ADB_UI.raw(tabBtn, `${title} | ${routeCount} routes`, "title");
             tabBtn.innerHTML = `
-                <div class="instance-tab-title">实例 ${index + 1}</div>
-                <div class="instance-tab-subtitle">${modeLabel} · ${routeCount} 路由</div>
+                <div class="instance-tab-title">${ADB_UI.span("ui_instance_0", [index + 1])}</div>
+                <div class="instance-tab-subtitle">${ADB_UI.span("ui_0_1_routes", [modeLabel, routeCount])}</div>
             `;
 
             tabBtn.onclick = () => {
@@ -1767,23 +1763,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (reactBaseInputContainer) reactBaseInputContainer.style.display = 'none';
 
         if (!reactRouterInfo) {
-            reactRoutesListContainer.innerHTML = '<div class="empty-state">等待检测 React Router（如需检测请打开<strong>获取路由</strong>并刷新网站）</div>';
+            reactRoutesListContainer.innerHTML = `<div class="empty-state">${ADB_UI.span("ui_waiting_for_react_router_enable_collect_routes_and_reload_the_web")}</div>`;
             return;
         }
 
         if (reactRouterInfo.notFound) {
-            reactRoutesListContainer.innerHTML = '<div class="empty-state">❌ 未检测到 React Router（可尝试重新打开插件）</div>';
+            reactRoutesListContainer.innerHTML = `<div class="empty-state">${ADB_UI.span("ui_react_router_not_detected_try_reopening_the_popup")}</div>`;
             return;
         }
 
         if (reactRouterInfo.serializationError) {
-            reactRoutesListContainer.innerHTML = '<div class="empty-state">❌ 路由数据传输失败，请查看控制台（F12）输出的路由信息！</div>';
+            reactRoutesListContainer.innerHTML = `<div class="empty-state">${ADB_UI.span("ui_route_data_could_not_be_transferred_check_route_output_in_the_con")}</div>`;
             return;
         }
 
         const allRoutes = reactRouterInfo.routes;
         if (!allRoutes || allRoutes.length === 0) {
-            reactRoutesListContainer.innerHTML = '<div class="empty-state">⚠️ 路由表为空</div>';
+            reactRoutesListContainer.innerHTML = `<div class="empty-state">${ADB_UI.span("ui_the_route_table_is_empty_2")}</div>`;
             return;
         }
 
@@ -1804,7 +1800,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (detectedBase.trim() !== '') {
             if (detectedBase.startsWith('http://') || detectedBase.startsWith('https://') || detectedBase.includes('#')) {
-                console.warn('[AntiDebug] React 检测到的 basename 无效，已忽略:', detectedBase);
+                console.warn(ADB_I18N.t("ui_antidebug_invalid_react_basename_ignored"), detectedBase);
             } else {
                 cleanDetectedBase = detectedBase.endsWith('/') ? detectedBase.slice(0, -1) : detectedBase;
                 if (cleanDetectedBase !== '/' && cleanDetectedBase !== '') {
@@ -1853,17 +1849,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 routeItem.innerHTML = `
                     <div class="route-url" title="${fullUrl}">${fullUrl}</div>
                     <div class="route-actions">
-                        <button class="route-btn copy-btn" data-url="${fullUrl}">复制</button>
-                        <button class="route-btn open-btn" data-url="${fullUrl}" data-route-path="${routePath}">打开</button>
+                        <button class="route-btn copy-btn" data-url="${fullUrl}">${ADB_UI.span("ui_copy")}</button>
+                        <button class="route-btn open-btn" data-url="${fullUrl}" data-route-path="${routePath}">${ADB_UI.span("ui_open")}</button>
                     </div>
                 `;
 
                 routeItem.querySelector('.copy-btn').addEventListener('click', () => {
                     navigator.clipboard.writeText(fullUrl).then(() => {
                         const btn = routeItem.querySelector('.copy-btn');
-                        btn.textContent = '✓ 已复制';
-                        setTimeout(() => { btn.textContent = '复制'; }, 1500);
-                    }).catch(err => console.error('复制失败:', err));
+                        ADB_UI.bind(btn, () => ADB_I18N.t("ui_copied_3"), "textContent");
+                        setTimeout(() => { ADB_UI.bind(btn, () => ADB_I18N.t("ui_copy"), "textContent"); }, 1500);
+                    }).catch(err => console.error(ADB_I18N.t("ui_copy_failed"), err));
                 });
 
                 routeItem.querySelector('.open-btn').addEventListener('click', () => {
@@ -1898,7 +1894,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const reactRoutesInfo = document.querySelector('.react-routes-info');
             if (reactRoutesInfo) {
                 const renderedCount = reactRoutesListContainer.querySelectorAll('.route-item').length;
-                reactRoutesInfo.innerHTML = `完整路由列表 (<span class="highlight">${routerMode}</span> 模式) -- <span class="highlight">${renderedCount}</span> 条路由`;
+                reactRoutesInfo.innerHTML = ADB_UI.span("ui_complete_route_list_0_mode_1_routes", [routerMode, renderedCount]);
             }
         }
 
@@ -1923,7 +1919,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const customInput = document.getElementById('react-custom-base-input');
             const clearBtn = reactBaseInputContainer.querySelector('.react-clear-base-btn');
 
-            if (detectedBaseValue) detectedBaseValue.textContent = cleanDetectedBase;
+            if (detectedBaseValue) ADB_UI.raw(detectedBaseValue, cleanDetectedBase, "textContent");
 
             // 从 storage 恢复自定义 base
             const storageKey = `${hostname}_react_custom_base`;
@@ -1979,9 +1975,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     return normalizedPath;
                 }).join('\n');
                 navigator.clipboard.writeText(text).then(() => {
-                    reactCopyAllPathsBtn.textContent = '✓ 已复制';
-                    setTimeout(() => { reactCopyAllPathsBtn.textContent = '复制所有路径'; }, 1500);
-                }).catch(err => console.error('复制失败:', err));
+                    ADB_UI.bind(reactCopyAllPathsBtn, () => ADB_I18N.t("ui_copied_3"), "textContent");
+                    setTimeout(() => { ADB_UI.bind(reactCopyAllPathsBtn, () => ADB_I18N.t("ui_copy_all_paths"), "textContent"); }, 1500);
+                }).catch(err => console.error(ADB_I18N.t("ui_copy_failed"), err));
             };
         }
 
@@ -1994,9 +1990,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     return buildFullUrl(normalizedPath);
                 }).join('\n');
                 navigator.clipboard.writeText(text).then(() => {
-                    reactCopyAllUrlsBtn.textContent = '✓ 已复制';
-                    setTimeout(() => { reactCopyAllUrlsBtn.textContent = '复制所有URL'; }, 1500);
-                }).catch(err => console.error('复制失败:', err));
+                    ADB_UI.bind(reactCopyAllUrlsBtn, () => ADB_I18N.t("ui_copied_3"), "textContent");
+                    setTimeout(() => { ADB_UI.bind(reactCopyAllUrlsBtn, () => ADB_I18N.t("ui_copy_all_urls"), "textContent"); }, 1500);
+                }).catch(err => console.error(ADB_I18N.t("ui_copy_failed"), err));
             };
         }
     }
@@ -2035,21 +2031,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (!vueRouterInfo) {
-            routesListContainer.innerHTML = '<div class="empty-state">等待检测 Vue Router（如需检测请打开<strong>获取路由</strong>并刷新网站）</div>';
+            routesListContainer.innerHTML = `<div class="empty-state">${ADB_UI.span("ui_waiting_for_vue_router_enable_collect_routes_and_reload_the_websi")}</div>`;
             vueVersionDisplay.style.display = 'none';
             return;
         }
 
         // 未找到Router
         if (vueRouterInfo.notFound) {
-            routesListContainer.innerHTML = '<div class="empty-state">❌ 未检测到 Vue Router（可尝试重新打开插件）</div>';
+            routesListContainer.innerHTML = `<div class="empty-state">${ADB_UI.span("ui_vue_router_not_detected_try_reopening_the_popup")}</div>`;
             vueVersionDisplay.style.display = 'none';
             return;
         }
 
         // ✅ 新增：序列化错误处理
         if (vueRouterInfo.serializationError) {
-            routesListContainer.innerHTML = '<div class="empty-state">❌ 路由数据传输失败，请查看控制台（F12）输出的路由信息！</div>';
+            routesListContainer.innerHTML = `<div class="empty-state">${ADB_UI.span("ui_route_data_could_not_be_transferred_check_route_output_in_the_con")}</div>`;
             vueVersionDisplay.style.display = 'none';
             return;
         }
@@ -2057,22 +2053,22 @@ document.addEventListener('DOMContentLoaded', () => {
         // 显示Vue版本和路由信息
         if (vueRouterInfo.vueVersion) {
             vueVersionDisplay.style.display = 'flex';
-            versionValue.textContent = vueRouterInfo.vueVersion;
+            ADB_UI.raw(versionValue, vueRouterInfo.vueVersion, "textContent");
 
             // 显示路由信息到左侧
             const routesInfo = vueVersionDisplay.querySelector('.routes-info');
             if (!vueRouterInfo.routes || vueRouterInfo.routes.length === 0) {
-                routesInfo.textContent = '路由表为空';
+                ADB_UI.bind(routesInfo, () => ADB_I18N.t("ui_the_route_table_is_empty"), "textContent");
             } else {
                 const routerMode = vueRouterInfo.routerMode || 'history';
                 const routeCount = vueRouterInfo.routes.length;
-                routesInfo.innerHTML = `完整URL列表 (<span class="highlight">${routerMode}</span> 模式) -- <span class="highlight">${routeCount}</span> 条路由`;
+                ADB_UI.bind(routesInfo, () => ADB_I18N.t("ui_complete_url_list_0_mode_1_routes", [routerMode, routeCount]), "textContent");
             }
         }
 
         // 显示路由列表
         if (!vueRouterInfo.routes || vueRouterInfo.routes.length === 0) {
-            routesListContainer.innerHTML = '<div class="empty-state">⚠️ 路由表为空</div>';
+            routesListContainer.innerHTML = `<div class="empty-state">${ADB_UI.span("ui_the_route_table_is_empty_2")}</div>`;
             return;
         }
 
@@ -2096,7 +2092,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             } catch (e) {
-                console.warn('[AntiDebug] 提取baseUrl时出错:', e);
+                console.warn(ADB_I18N.t("ui_antidebug_could_not_extract_base_url"), e);
             }
         }
 
@@ -2107,7 +2103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (detectedBase && detectedBase.trim() !== '') {
             // 如果是完整URL或包含#，不显示输入框
             if (detectedBase.startsWith('http://') || detectedBase.startsWith('https://') || detectedBase.includes('#')) {
-                console.warn('[AntiDebug] 检测到的base无效，已忽略:', detectedBase);
+                console.warn(ADB_I18N.t("ui_antidebug_invalid_detected_base_ignored"), detectedBase);
             } else {
                 // 清理尾部斜杠
                 cleanDetectedBase = detectedBase.endsWith('/') ? detectedBase.slice(0, -1) : detectedBase;
@@ -2130,7 +2126,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 显示检测到的base
             if (detectedBaseValue) {
-                detectedBaseValue.textContent = cleanDetectedBase;
+                ADB_UI.raw(detectedBaseValue, cleanDetectedBase, "textContent");
             }
 
             // ✅ 从 storage读取该域名的自定义base
@@ -2248,8 +2244,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 routeItem.innerHTML = `
                     <div class="route-url" title="${fullUrl}">${fullUrl}</div>
                     <div class="route-actions">
-                        <button class="route-btn copy-btn" data-url="${fullUrl}">复制</button>
-                        <button class="route-btn open-btn" data-url="${fullUrl}">打开</button>
+                        <button class="route-btn copy-btn" data-url="${fullUrl}">${ADB_UI.span("ui_copy")}</button>
+                        <button class="route-btn open-btn" data-url="${fullUrl}">${ADB_UI.span("ui_open")}</button>
                     </div>
                 `;
 
@@ -2260,12 +2256,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 copyBtn.addEventListener('click', () => {
                     navigator.clipboard.writeText(fullUrl).then(() => {
                         const originalText = copyBtn.textContent;
-                        copyBtn.textContent = '✓ 已复制';
+                        ADB_UI.bind(copyBtn, () => ADB_I18N.t("ui_copied_3"), "textContent");
                         setTimeout(() => {
-                            copyBtn.textContent = originalText;
+                            ADB_UI.bind(copyBtn, () => ADB_I18N.t("ui_copy"), "textContent");
                         }, 1500);
                     }).catch(err => {
-                        console.error('复制失败:', err);
+                        console.error(ADB_I18N.t("ui_copy_failed"), err);
                     });
                 });
 
@@ -2355,12 +2351,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             navigator.clipboard.writeText(allPaths).then(() => {
                 const originalText = copyAllPathsBtn.textContent;
-                copyAllPathsBtn.textContent = '✓ 已复制';
+                ADB_UI.bind(copyAllPathsBtn, () => ADB_I18N.t("ui_copied_3"), "textContent");
                 setTimeout(() => {
-                    copyAllPathsBtn.textContent = originalText;
+                    ADB_UI.bind(copyAllPathsBtn, () => ADB_I18N.t("ui_copy_all_paths"), "textContent");
                 }, 1500);
             }).catch(err => {
-                console.error('复制失败:', err);
+                console.error(ADB_I18N.t("ui_copy_failed"), err);
             });
         };
 
@@ -2401,12 +2397,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             navigator.clipboard.writeText(allUrls).then(() => {
                 const originalText = copyAllUrlsBtn.textContent;
-                copyAllUrlsBtn.textContent = '✓ 已复制';
+                ADB_UI.bind(copyAllUrlsBtn, () => ADB_I18N.t("ui_copied_3"), "textContent");
                 setTimeout(() => {
-                    copyAllUrlsBtn.textContent = originalText;
+                    ADB_UI.bind(copyAllUrlsBtn, () => ADB_I18N.t("ui_copy_all_urls"), "textContent");
                 }, 1500);
             }).catch(err => {
-                console.error('复制失败:', err);
+                console.error(ADB_I18N.t("ui_copy_failed"), err);
             });
         };
     }

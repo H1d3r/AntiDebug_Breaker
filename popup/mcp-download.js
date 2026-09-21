@@ -23,11 +23,11 @@
         link.href = `https://github.com/${release.repository}/releases/tag/${encodeURIComponent(release.tag)}`;
         link.removeAttribute('aria-disabled');
         link.removeAttribute('tabindex');
-        version.textContent = `适配扩展 ${currentVersion} · 含安装说明`;
-        link.title = `前往 GitHub 发布页下载 · ${version.textContent}`;
+        ADB_UI.bind(version, () => ADB_I18N.t("ui_for_extension_0_includes_setup_guide", [currentVersion]), "textContent");
+        ADB_UI.bind(link, () => ADB_I18N.t("ui_download_from_the_github_release_page_0", [version.textContent]), "title");
     })().catch(() => {
-        version.textContent = '';
-        feedback.textContent = '无法读取配套包下载信息，请重新加载扩展后重试。';
+        ADB_UI.raw(version, '', "textContent");
+        ADB_UI.bind(feedback, () => ADB_I18N.t("ui_could_not_load_bundle_download_information_reload_the_extension_a"), "textContent");
         feedback.hidden = false;
     });
 })();

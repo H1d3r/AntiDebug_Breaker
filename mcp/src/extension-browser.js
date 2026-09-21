@@ -78,7 +78,7 @@ export class ExtensionBrowser extends EventEmitter {
       }
       if (!status?.available) throw failure('DEBUGGER_UNAVAILABLE', 'Update the paired extension to a version with browser control.');
       if (!status.permissionGranted) throw failure('DEBUGGER_PERMISSION_REQUIRED', 'Reload or re-enable the updated extension in Chrome to accept its debugger permission.');
-      if (!status.controlEnabled) throw failure('DEBUGGER_CONTROL_DISABLED', 'Open the extension MCP panel and click "重新启用浏览器控制" (Re-enable browser control), or "启用 MCP 并允许 Agent 控制浏览器" if MCP is stopped. Only the user can enable this setting.');
+      if (!status.controlEnabled) throw failure('DEBUGGER_CONTROL_DISABLED', 'Open the extension MCP panel and click "Re-enable browser control", or "Enable MCP and allow browser control" if MCP is stopped. Only the user can enable this setting.');
       return new ExtensionBrowser(bridge);
     } finally {
       bridge.off('connected', invalidate);

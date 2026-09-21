@@ -14,6 +14,17 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_cookie")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
     let SCRIPT_ID = 'Hook_cookie';
 
     function clear_Antidebug(id) {
@@ -67,7 +78,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_cookie")) {
             },
             set: function (cookie) {
                 if (flag === "0") {
-                    console.log("设置cookie：\n", cookie);
+                    console.log(adbLogText("log_cookie_set", "Setting cookie:\n"), cookie);
                     window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { cookie });
                     if (is_debugger === "1") {
                         debugger;
@@ -78,7 +89,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_cookie")) {
                 } else {
                     let cookie_key = parseCookieNames(cookie);
                     if (cookie_key && cookie_key.length !== 0 && param.some(item => cookie_key[0].includes(item))) {
-                        console.log(`捕获到设置cookie ---> ${cookie_key[0]}\n值：${cookie}`);
+                        console.log(adbLogText("log_cookie_set_matched", "Matched cookie write ---> {0}\nValue: {1}", [`${cookie_key[0]}`, `${cookie}`]));
                         window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { cookie });
                         if (is_debugger === "1") {
                             debugger;

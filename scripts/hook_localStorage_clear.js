@@ -14,6 +14,17 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_localStorage_clear")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
     const SCRIPT_ID = 'hook_localStorage_clear';
 
     function clear_Antidebug(id) {
@@ -33,7 +44,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_localStorage_clear")) {
 
         localStorage.clear = function () {
             if (flag === "0") {
-                console.log("捕获到移除了localStorage中的所有键值对");
+                console.log(adbLogText("log_local_storage_clear", "Captured removal of all localStorage entries"));
                 window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                 if (is_debugger === "1") {
                     debugger;

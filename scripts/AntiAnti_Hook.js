@@ -14,6 +14,17 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("AntiAnti_Hook")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
     function clear_Antidebug() {
         localStorage.removeItem("Antidebug_breaker_Hooks");
     }
@@ -171,7 +182,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("AntiAnti_Hook")) {
             });
 
         } catch (e) {
-            console.error('AntiAnti_Hook: 解析Hooks列表失败', e);
+            console.error(adbLogText("log_anti_hook_parse_failed", "AntiAnti_Hook: Failed to parse the Hooks list"), e);
         }
 
         clear_Antidebug();

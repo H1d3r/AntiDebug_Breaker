@@ -93,6 +93,7 @@ header, footer { flex-shrink: 0; }
     gap: 10px;
 }
 .library-heading { flex-shrink: 0; }
+.library-heading h2 { display: flex; align-items: baseline; gap: 6px; }
 #library-summary { font-size: 12px; font-weight: 400; color: var(--on-surface-secondary); }
 #library-refresh {
     flex-shrink: 0;
@@ -668,6 +669,8 @@ h1 {
 .script-item.expanded {
     height: auto;
     overflow: visible;
+    /* Keep expanded descriptions above other cards, including hovered ones. */
+    z-index: 6;
 }
 
 /* 🆕 展开按钮 - 默认在描述右下角 */
@@ -2400,3 +2403,23 @@ footer {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
+
+/* Language changes keep the original 500 × 600 popup and all edit controls. */
+.language-setting { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-bottom: 9px; border-bottom: 1px solid var(--border); }
+.language-setting label { font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.language-setting select { flex: 1; min-width: 0; max-width: 125px; margin-left: auto; padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--on-surface); font: inherit; font-size: 12px; }
+#language-feedback { flex-basis: 100%; max-width: 100%; color: #ffb4b4; font-size: 11px; overflow-wrap: anywhere; }
+#language-feedback[hidden] { display: none; }
+/* Leave room for the 240px help bubbles and a right margin in the 500px popup. */
+.aux-config-panel { width: 215px; max-width: 215px; }
+.antiantiHook-tooltip, .mode-tooltip, .hook-notice-tooltip { white-space: pre-line; }
+html[lang=en] .script-name { font-size: 12px; overflow-wrap: anywhere; }
+html[lang=en] .hook-action-label { max-width: 55px; }
+html[lang=en] .library-editor-actions { flex-wrap: wrap; }
+html[lang=en] .library-editor-actions button { white-space: normal; }
+html[lang=en] footer .hint { font-size: 11px; text-align: right; }
+html[lang=en] .mcp-heading { flex-wrap: wrap; gap: 8px; }
+html[lang=en] .mcp-heading h2 { font-size: 16px; }
+html[lang=en] .mcp-heading-actions { flex-wrap: wrap; gap: 6px; }
+html[lang=en] .mcp-heading .mcp-download-link { padding: 5px 7px; }
+html[lang=en] .mcp-heading #mcp-prompts-open { padding: 5px 7px; }

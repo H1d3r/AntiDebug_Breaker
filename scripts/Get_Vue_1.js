@@ -14,10 +14,21 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_Vue_1")) {
 
 // Vue实例和Router获取函数（DOM监控版 - 适用于油猴脚本）
 (function() {
+
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
     // 更强的全局执行锁
     const LOCK_KEY = '__VUE_GETTER_RUNNING__';
     if (window[LOCK_KEY]) {
-        console.warn('⚠️ Vue获取脚本已在运行中，跳过本次执行');
+        console.warn(adbLogText("log_vue_already_running", "⚠️ Vue collector is already running; skipping this execution"));
         return;
     }
 
@@ -30,7 +41,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_Vue_1")) {
         });
     } catch (e) {
         // 如果无法设置，说明已经在运行
-        console.warn('⚠️ 无法设置执行锁，脚本可能已在运行');
+        console.warn(adbLogText("log_vue_lock_failed", "⚠️ Could not acquire the execution lock; the script may already be running"));
         return;
     }
 
@@ -52,8 +63,8 @@ let adbRequestId = null;
     } catch (error) {
         // ✅ 捕获 DataCloneError
         if (error.name === 'DataCloneError' || error.message.includes('could not be cloned')) {
-            console.error('[AntiDebug] 路由数据包含不可序列化的对象（如Symbol），无法传递给插件');
-            console.error('[AntiDebug] 请查看控制台输出的路由列表');
+            console.error(adbLogText("log_vue_routes_not_serializable", "[AntiDebug] Route data contains non-serializable objects (such as Symbol) and cannot be sent to the extension"));
+            console.error(adbLogText("log_routes_see_console", "[AntiDebug] See the route list in the console"));
             
             // 发送错误消息给插件
             try {
@@ -64,21 +75,21 @@ let adbRequestId = null;
                     data: {
                         serializationError: true,
                         errorType: 'DataCloneError',
-                        errorMessage: '路由数据包含不可序列化的对象（如Symbol），无法传递给插件，请查看控制台输出'
+                        errorMessage: adbLogText("log_vue_routes_serialization_error", "Route data contains non-serializable objects (such as Symbol) and cannot be sent to the extension; see the console output")
                     }
                 }, '*');
             } catch (e) {
-                console.error('[AntiDebug] 发送错误消息也失败:', e);
+                console.error(adbLogText("log_error_message_send_failed", "[AntiDebug] Sending the error message also failed:"), e);
             }
         } else {
-            console.error('[AntiDebug] postMessage发送失败:', error);
+            console.error(adbLogText("log_vue_post_message_failed", "[AntiDebug] postMessage failed:"), error);
         }
     }
 }
 
     // 🆕 重扫描功能：清理资源并重新开始扫描
     function restartScanning() {
-        console.log('🔄 开始重新扫描Vue实例...');
+        console.log(adbLogText("log_vue_rescan", "🔄 Rescanning Vue instances..."));
         
         // 清理现有资源
         allTimeoutIds.forEach(id => clearTimeout(id));
@@ -130,7 +141,7 @@ let adbRequestId = null;
                             routerBase: extractRouterBase(cached.routerInstance)
                         };
                     } catch (e) {
-                        console.warn('获取Router最新数据时出错:', e);
+                        console.warn(adbLogText("log_router_refresh_failed", "Failed to retrieve the latest Router data:"), e);
                         return null;
                     }
                 }).filter(data => data !== null);
@@ -222,7 +233,7 @@ let adbRequestId = null;
             // 默认返回 history 模式
             return 'history';
         } catch (e) {
-            console.warn('检测路由模式时出错:', e);
+            console.warn(adbLogText("log_router_mode_failed", "Failed to detect the routing mode:"), e);
             return 'history';
         }
     }
@@ -243,7 +254,7 @@ let adbRequestId = null;
                     return router.options.history.base;
                 }
             } catch (e) {
-                console.warn('提取Router基础路径时出错:', e);
+                console.warn(adbLogText("log_router_base_failed", "Failed to extract the Router base path:"), e);
             }
             return '';
         }
@@ -304,9 +315,9 @@ let adbRequestId = null;
                 return list;
             }
 
-            console.warn('🚫 无法列出路由信息');
+            console.warn(adbLogText("log_router_list_unavailable", "🚫 Could not list routes"));
         } catch (e) {
-            console.warn('获取路由列表时出错:', e);
+            console.warn(adbLogText("log_router_list_failed", "Failed to retrieve the route list:"), e);
         }
 
         return list;
@@ -398,7 +409,7 @@ let adbRequestId = null;
                     vue._router;
             }
         } catch (e) {
-            console.warn('获取Router实例时出错:', e);
+            console.warn(adbLogText("log_router_instance_failed", "Failed to retrieve the Router instance:"), e);
         }
         return null;
     }
@@ -449,12 +460,12 @@ let adbRequestId = null;
 
                     // 立即输出新发现的Router（仅控制台）
                     const instanceIndex = validInstancesCache.length;
-                    console.log(`\n📋 Vue Router 路由列表 [实例 ${instanceIndex} - Vue ${vueVersion} - ${routerMode} 模式]：`);
+                    console.log(adbLogText("log_vue_routes_title", "\n📋 Vue Router routes [instance {0} - Vue {1} - {2} mode]:", [`${instanceIndex}`, `${vueVersion}`, `${routerMode}`]));
                     console.table(allRoutes.map(route => ({
-                        Name: route.name || '(unnamed)',
-                        Path: route.path
+                        [adbLogText("log_route_name", "Name")]: route.name || adbLogText("log_route_unnamed", "(unnamed)"),
+                        [adbLogText("log_route_path", "Path")]: route.path
                     })));
-                    console.log(`\n🔗 Vue Router 实例 [${instanceIndex}]：`);
+                    console.log(adbLogText("log_vue_instance_title", "\n🔗 Vue Router instance [{0}]:", [`${instanceIndex}`]));
                     console.log(routerInstance);
                 }
             }
@@ -516,7 +527,7 @@ let adbRequestId = null;
 
         // 输出检测结束信息
         if (validInstancesCache.length === 0) {
-            console.log('❌ 未找到任何含Router的Vue实例');
+            console.log(adbLogText("log_vue_router_not_found", "❌ No Vue instance with a Router was found"));
         }
     }
 

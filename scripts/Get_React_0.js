@@ -15,10 +15,21 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
     // ===== 全局执行锁，防止脚本重复运行 =====
     const LOCK_KEY = '__REACT_GETTER_RUNNING__';
     if (window[LOCK_KEY]) {
-        console.warn('[AntiDebug] React 路由获取脚本已在运行，跳过本次执行');
+        console.warn(adbLogText("log_react_already_running", "[AntiDebug] React route collector is already running; skipping this execution"));
         return;
     }
     try {
@@ -28,7 +39,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
             configurable: false
         });
     } catch (e) {
-        console.warn('[AntiDebug] 无法设置执行锁，脚本可能已在运行');
+        console.warn(adbLogText("log_react_lock_failed", "[AntiDebug] Could not acquire the execution lock; the script may already be running"));
         return;
     }
 
@@ -135,7 +146,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
             }, '*');
         } catch (error) {
             if (error.name === 'DataCloneError' || error.message.includes('could not be cloned')) {
-                console.error('[AntiDebug] 路由数据包含不可序列化的对象，无法传递给插件');
+                console.error(adbLogText("log_react_routes_not_serializable", "[AntiDebug] Route data contains non-serializable objects and cannot be sent to the extension"));
                 try {
                     window.postMessage({
                         type: 'REACT_ROUTER_DATA',
@@ -144,19 +155,19 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
                         data: {
                             serializationError: true,
                             errorType: 'DataCloneError',
-                            errorMessage: '路由数据包含不可序列化的对象，请查看控制台输出'
+                            errorMessage: adbLogText("log_react_routes_serialization_error", "Route data contains non-serializable objects; see the console output")
                         }
                     }, '*');
                 } catch (e) {}
             } else {
-                console.error('[AntiDebug] postMessage 发送失败:', error);
+                console.error(adbLogText("log_post_message_failed", "[AntiDebug] postMessage failed:"), error);
             }
         }
     }
 
     // ===== 重新扫描 =====
     function restartScanning() {
-        console.log('[AntiDebug] 开始重新扫描 React Router...');
+        console.log(adbLogText("log_react_rescan", "[AntiDebug] Rescanning React Router..."));
         allTimeoutIds.forEach(id => clearTimeout(id));
         allTimeoutIds = [];
         if (observer) {
@@ -250,7 +261,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
         }
 
         if (results.length > 0) {
-            results.forEach(r => debugLog(`[AntiDebug] 检测到 React 挂载节点：${r.prop} on`, r.node));
+            results.forEach(r => debugLog(adbLogText("log_react_mount_found", "[AntiDebug] React mount detected: {0} on", [`${r.prop}`]), r.node));
         }
         return results;
     }
@@ -272,7 +283,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
                 //   HostRoot Fiber.child = 第一个组件 Fiber
                 const fiberA = containerInfo.value ?._internalRoot ?.current ?.child;
                 if (fiberA) {
-                    debugLog('[AntiDebug] _reactRootContainer（方式 A: _internalRoot）startFiber:', fiberA);
+                    debugLog(adbLogText("log_react_root_internal", "[AntiDebug] _reactRootContainer (method A: _internalRoot) startFiber:"), fiberA);
                     return fiberA;
                 }
 
@@ -282,11 +293,11 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
                 //   HostRoot Fiber.child = 第一个组件 Fiber
                 const fiberB = containerInfo.value ?.current ?.child;
                 if (fiberB) {
-                    debugLog('[AntiDebug] _reactRootContainer（方式 B: direct current）startFiber:', fiberB);
+                    debugLog(adbLogText("log_react_root_direct", "[AntiDebug] _reactRootContainer (method B: direct current) startFiber:"), fiberB);
                     return fiberB;
                 }
 
-                debugWarn('[AntiDebug] _reactRootContainer 结构未识别:', containerInfo.value);
+                debugWarn(adbLogText("log_react_root_unknown", "[AntiDebug] Unrecognized _reactRootContainer structure:"), containerInfo.value);
                 return null;
             }
 
@@ -308,7 +319,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
             debugLog('[AntiDebug] React 18 startFiber（via direct child）:', fiberB);
             return fiberB;
         } catch (e) {
-            debugWarn('[AntiDebug] getStartFiber 出错:', e);
+            debugWarn(adbLogText("log_react_start_fiber_failed", "[AntiDebug] getStartFiber failed:"), e);
             return null;
         }
     }
@@ -362,7 +373,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
         }
 
         if (results.length > 0) {
-            debugLog(`[AntiDebug] 检测到 ${results.length} 个 React Host Fiber 节点`);
+            debugLog(adbLogText("log_react_host_fibers_found", "[AntiDebug] Found {0} React Host Fiber node(s)", [`${results.length}`]));
         }
         return results;
     }
@@ -406,7 +417,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
 
             return highest || fiber;
         } catch (e) {
-            debugWarn('[AntiDebug] getStartFiberFromHostFiber 出错:', e);
+            debugWarn(adbLogText("log_react_host_start_failed", "[AntiDebug] getStartFiberFromHostFiber failed:"), e);
             return null;
         }
     }
@@ -518,7 +529,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
         });
         if (newRecords.length === 0) return;
 
-        const title = `[AntiDebug] React 实例列表（${newRecords.length} 个）`;
+        const title = adbLogText("log_react_instances", "[AntiDebug] React instances ({0})", [`${newRecords.length}`]);
         if (typeof console.groupCollapsed === 'function') {
             console.groupCollapsed(title);
         } else {
@@ -528,11 +539,11 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
         newRecords.forEach((record, index) => {
             const displayName = getFiberDisplayName(record.startFiber) || '(unknown)';
             console.log(
-                `[AntiDebug] React 实例 #${index + 1} 来源=${record.source} 入口组件=${displayName}`,
+                adbLogText("log_react_instance_source", "[AntiDebug] React instance #{0} source={1} entry component={2}", [`${index + 1}`, `${record.source}`, `${displayName}`]),
                 record.startFiber
             );
             if (record.rawFiber && record.rawFiber !== record.startFiber) {
-                console.log(`[AntiDebug] React 实例 #${index + 1} 原始 Host Fiber:`, record.rawFiber);
+                console.log(adbLogText("log_react_raw_host_fiber", "[AntiDebug] React instance #{0} raw Host Fiber:", [`${index + 1}`]), record.rawFiber);
             }
         });
 
@@ -1569,9 +1580,9 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
         }
 
         if (count >= ROUTER_FIBER_SCAN_MAX_NODES) {
-            debugWarn(`[AntiDebug] Fiber tree scan reached ${ROUTER_FIBER_SCAN_MAX_NODES} nodes; result may be incomplete`);
+            debugWarn(adbLogText("log_react_scan_limit", "[AntiDebug] Fiber tree scan reached {0} nodes; result may be incomplete", [`${ROUTER_FIBER_SCAN_MAX_NODES}`]));
         } else if (!jsxRoutesCandidate) {
-            debugLog(`[AntiDebug] Fiber tree scan finished, visited ${count} nodes, no Router found`);
+            debugLog(adbLogText("log_react_scan_finished", "[AntiDebug] Fiber tree scan finished, visited {0} nodes, no Router found", [`${count}`]));
         }
 
         // RouterProvider / LegacyRoutes 未找到时，用 JSX Routes 候选兜底。
@@ -1689,9 +1700,9 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
         }
 
         if (count >= ROUTER_FIBER_SCAN_MAX_NODES) {
-            debugWarn(`[AntiDebug] Fiber tree scan reached ${ROUTER_FIBER_SCAN_MAX_NODES} nodes; result may be incomplete`);
+            debugWarn(adbLogText("log_react_scan_limit", "[AntiDebug] Fiber tree scan reached {0} nodes; result may be incomplete", [`${ROUTER_FIBER_SCAN_MAX_NODES}`]));
         } else if (!jsxRoutesCandidate && !menuRoutesCandidate) {
-            debugLog(`[AntiDebug] Fiber tree scan finished, visited ${count} nodes, no Router found`);
+            debugLog(adbLogText("log_react_scan_finished", "[AntiDebug] Fiber tree scan finished, visited {0} nodes, no Router found", [`${count}`]));
         }
 
         return jsxRoutesCandidate || menuRoutesCandidate || null;
@@ -1802,7 +1813,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
                 }
                 if (typeof elementProps.to === 'string') {
                     list.push({
-                        name: '(redirect閳?',
+                        name: '(redirect target)',
                         path: joinPath(prefix, elementProps.to)
                     });
                 }
@@ -1863,7 +1874,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
                 }
                 if (typeof p.to === 'string') {
                     list.push({
-                        name: '(redirect鈫?',
+                        name: '(redirect target)',
                         path: joinPath(prefix, p.to)
                     });
                 }
@@ -2500,51 +2511,51 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
             if (result.type === 'RouterProvider') {
                 mode = detectRouterMode(result.router, startFiber);
                 routes = extractRouterProviderRoutes(result.router.routes);
-                debugLog(`\n[AntiDebug] React Router routes [RouterProvider - ${mode}]`);
+                debugLog(adbLogText("log_react_provider_routes", "\n[AntiDebug] React Router routes [RouterProvider - {0}]", [`${mode}`]));
                 debugTable(routes.map(r => ({
-                    Name: r.name,
-                    Path: r.path
+                    [adbLogText("log_route_name", "Name")]: r.name,
+                    [adbLogText("log_route_path", "Path")]: r.path
                 })));
-                debugLog('\n[AntiDebug] Router instance:', result.router);
+                debugLog(adbLogText("log_react_router_instance", "\n[AntiDebug] Router instance:"), result.router);
             } else if (result.type === 'GitHubRoutes') {
                 routes = extractGitHubRoutes(result.routes);
                 mode = detectRouterMode(null, startFiber);
-                debugLog('\n[AntiDebug] React Router routes [GitHubRoutes]');
+                debugLog(adbLogText("log_react_github_routes", "\n[AntiDebug] React Router routes [GitHubRoutes]"));
                 debugTable(routes.map(r => ({
-                    Name: r.name,
-                    Path: r.path
+                    [adbLogText("log_route_name", "Name")]: r.name,
+                    [adbLogText("log_route_path", "Path")]: r.path
                 })));
             } else if (result.type === 'ContextRoutes') {
                 routes = extractRouterProviderRoutes(result.routes);
                 mode = detectRouterMode(null, startFiber);
-                debugLog('\n[AntiDebug] React Router routes [ContextRoutes]');
+                debugLog(adbLogText("log_react_context_routes", "\n[AntiDebug] React Router routes [ContextRoutes]"));
                 debugTable(routes.map(r => ({
-                    Name: r.name,
-                    Path: r.path
+                    [adbLogText("log_route_name", "Name")]: r.name,
+                    [adbLogText("log_route_path", "Path")]: r.path
                 })));
             } else if (result.type === 'LegacyRoutes') {
                 routes = extractLegacyRoutes(result.routes);
                 mode = detectRouterMode(null, startFiber);
-                debugLog('\n[AntiDebug] React Router routes [LegacyRoutes]');
+                debugLog(adbLogText("log_react_legacy_routes", "\n[AntiDebug] React Router routes [LegacyRoutes]"));
                 debugTable(routes.map(r => ({
-                    Name: r.name,
-                    Path: r.path
+                    [adbLogText("log_route_name", "Name")]: r.name,
+                    [adbLogText("log_route_path", "Path")]: r.path
                 })));
-                debugLog('\n[AntiDebug] Raw routes:', result.routes);
+                debugLog(adbLogText("log_react_raw_routes", "\n[AntiDebug] Raw routes:"), result.routes);
             } else if (result.type === 'MenuRoutes') {
                 routes = result.routes || [];
                 mode = detectRouterMode(null, startFiber);
-                debugLog('\n[AntiDebug] React Router routes [MenuRoutes fallback]');
+                debugLog(adbLogText("log_react_menu_routes", "\n[AntiDebug] React Router routes [MenuRoutes fallback]"));
                 debugTable(routes.map(r => ({
-                    Name: r.name || '(unnamed)',
-                    Path: r.path
+                    [adbLogText("log_route_name", "Name")]: r.name || adbLogText("log_route_unnamed", "(unnamed)"),
+                    [adbLogText("log_route_path", "Path")]: r.path
                 })));
             } else {
                 routes = extractJSXRoutes(result.props);
-                debugLog('\n[AntiDebug] React Router routes [JSX Routes]');
+                debugLog(adbLogText("log_react_jsx_routes", "\n[AntiDebug] React Router routes [JSX Routes]"));
                 debugTable(routes.map(r => ({
-                    Name: r.name || '(unnamed)',
-                    Path: r.path
+                    [adbLogText("log_route_name", "Name")]: r.name || adbLogText("log_route_unnamed", "(unnamed)"),
+                    [adbLogText("log_route_path", "Path")]: r.path
                 })));
                 mode = detectRouterMode(null, startFiber);
             }
@@ -2617,7 +2628,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
                 cachedResult = nextResult;
                 lastResultSignature = nextSignature;
                 stableScanCount = 0;
-                console.log(`[AntiDebug] React Router scan updated: ${instances.length} instance(s), ${collectedRoutes.length} route(s)`);
+                console.log(adbLogText("log_react_scan_updated", "[AntiDebug] React Router scan updated: {0} instance(s), {1} route(s)", [`${instances.length}`, `${collectedRoutes.length}`]));
                 sendToExtension(cachedResult);
             } else {
                 stableScanCount++;
@@ -2691,7 +2702,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Get_React_0")) {
             } else if (hasOutputResult) {
                 cleanupResources();
             } else {
-                console.log('[AntiDebug] React Router instance not found after retries');
+                console.log(adbLogText("log_react_router_not_found", "[AntiDebug] React Router instance not found after retries"));
                 cleanupResources();
             }
         }

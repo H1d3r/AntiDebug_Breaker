@@ -42,7 +42,7 @@
     function element(tag, className, text) {
         const node = document.createElement(tag);
         node.className = className;
-        if (text !== undefined) node.textContent = text;
+        if (text !== undefined) ADB_UI.text(node, text);
         return node;
     }
     function button(className, label, handler) {
@@ -54,7 +54,7 @@
     function feedback(state, text, error = false) {
         state.feedback = { text, error };
         if (!state.view) return;
-        state.view.feedback.textContent = text;
+        ADB_UI.text(state.view.feedback, text);
         state.view.feedback.hidden = !text;
         state.view.feedback.classList.toggle('library-card-error', error);
     }
@@ -70,7 +70,7 @@
     function persist(state, field, draft) {
         const value = draft ? { ...draft } : { cleared: true };
         return storageTask(() => chrome.storage.session.set({ [key(state.id, field)]: value })).catch(error => {
-            feedback(state, '草稿暂存失败，请先复制修改内容，再关闭面板。', true);
+            feedback(state, ADB_I18N.t("ui_could_not_save_the_draft_copy_your_changes_before_closing_the_pop"), true);
             throw error;
         });
     }
@@ -92,8 +92,8 @@
             state.drafts[field] = { revision: state.revision, baseValue: value, value };
         }
         feedback(state, state.drafts[field].revision !== state.revision
-            ? '草稿保留了旧版本。请复制需要的修改后取消编辑，再重新打开以编辑最新版本。'
-            : '修改后点击保存；取消将丢弃此项草稿。', state.drafts[field].revision !== state.revision);
+            ? ADB_I18N.t("ui_this_draft_is_based_on_an_older_version_copy_your_changes_cancel_")
+            : ADB_I18N.t("ui_save_to_apply_your_changes_cancel_discards_this_field_s_draft"), state.drafts[field].revision !== state.revision);
         renderTransient(state);
         focusInput(state);
     }
@@ -106,7 +106,7 @@
             await persist(state, field, null);
             state.drafts[field] = null;
             state.active = null;
-            feedback(state, '已取消本次编辑。');
+            feedback(state, ADB_I18N.t("ui_editing_canceled"));
         } catch (_) { /* Preserve the input if its persisted draft could not be cleared. */ }
         finally { state.busy = false; renderTransient(state); }
     }
@@ -118,43 +118,43 @@
         const value = field === 'name' ? draft.value.trim()
             : draft.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean);
         if (field === 'name' && (!value || value.length > 200)) {
-            feedback(state, '脚本名称不能为空，且不得超过 200 个字符。', true);
+            feedback(state, ADB_I18N.t("ui_enter_a_script_name_of_1_200_characters"), true);
             focusInput(state);
             return;
         }
         if (field === 'matches' && (!value.length || value.length > 20)) {
-            feedback(state, '请填写 1–20 个匹配网站规则，每行一个。', true);
+            feedback(state, ADB_I18N.t("ui_enter_1_20_website_match_patterns_one_per_line"), true);
             focusInput(state);
             return;
         }
         state.busy = true;
         controls(state);
-        feedback(state, '正在保存…');
+        feedback(state, ADB_I18N.t("ui_saving"));
         try {
             const result = await state.options.command('library.update', {
                 id: state.id, [field]: value, expectedRevision: draft.revision
             });
             if (result?.saved !== true || result.script?.id !== state.id || !Number.isSafeInteger(result.revision) ||
                 typeof result.script.name !== 'string' || !Array.isArray(result.script.matches)) {
-                throw new Error('无法确认保存结果，草稿已保留。请刷新列表核对。');
+                throw new Error(ADB_I18N.t("ui_could_not_confirm_the_save_your_draft_is_retained_refresh_the_lis"));
             }
             state.script = result.script;
             state.revision = result.revision;
             state.drafts[field] = null;
             state.active = null;
             try { await persist(state, field, null); }
-            catch (_) { state.options.showToast('修改已保存，但暂存草稿未清除，重新打开时请核对。'); }
+            catch (_) { state.options.showToast(ADB_I18N.t("ui_changes_saved_but_the_draft_could_not_be_cleared_check_it_when_re")); }
             const text = result.registrationUpdated
-                ? field === 'name' ? '脚本名称已保存。' : '匹配网站已保存，刷新相关网页后生效。'
-                : `修改已保存，但自动注入尚未同步。${result.status?.guidance || '请查看脚本库中的错误提示。'}`;
+                ? field === 'name' ? ADB_I18N.t("ui_script_name_saved") : ADB_I18N.t("ui_match_patterns_saved_reload_matching_pages_to_apply")
+                : ADB_I18N.t("ui_changes_saved_but_automatic_injection_is_not_synchronized_0", [ADB_I18N.translate(result.status?.guidance) || ADB_I18N.t("ui_check_the_error_shown_in_the_script_library")]);
             feedback(state, text, !result.registrationUpdated);
             state.options.showToast(text);
             state.options.onSaved();
         } catch (error) {
             feedback(state, error.code === 'REVISION_CONFLICT'
-                ? '脚本库已被更新，本次未覆盖。草稿已保留；请复制修改后取消编辑，再重新打开。'
-                : error.code === 'SCRIPT_NOT_FOUND' ? '脚本已被删除，本次未保存。请复制需保留的修改。'
-                : error.message || '保存失败，草稿已保留。', true);
+                ? ADB_I18N.t("ui_the_library_changed_so_nothing_was_overwritten_your_draft_is_reta")
+                : error.code === 'SCRIPT_NOT_FOUND' ? ADB_I18N.t("ui_the_script_was_deleted_nothing_was_saved_copy_any_changes_you_nee")
+                : ADB_I18N.error(error) || ADB_I18N.t("ui_save_failed_your_draft_is_retained"), true);
             if (error.code === 'REVISION_CONFLICT') state.options.onSaved();
         } finally { state.busy = false; renderTransient(state); }
     }
@@ -169,27 +169,27 @@
         const revision = state.confirmation.revision;
         state.busy = true;
         controls(state);
-        feedback(state, '正在删除…');
+        feedback(state, ADB_I18N.t("ui_deleting"));
         try {
             const result = await state.options.command('library.delete', { id: state.id, expectedRevision: revision });
             if (result?.saved !== true || result.deletedId !== state.id) {
-                throw new Error('无法确认删除结果，请刷新脚本库检查。');
+                throw new Error(ADB_I18N.t("ui_could_not_confirm_deletion_refresh_the_script_library_to_check"));
             }
             state.deleted = true;
             state.drafts = {};
             state.active = null;
             try {
                 await storageTask(() => chrome.storage.session.remove([sourcePrefix + state.id, ...fields.map(field => key(state.id, field))]));
-            } catch (_) { state.options.showToast('脚本已删除，但暂存草稿未清除。'); }
-            const text = result.registrationUpdated ? '已删除脚本。已打开页面中的效果需刷新后清除。'
-                : `已从脚本库删除，但尚未确认停止后续注入。${result.status?.guidance || '请重新加载扩展以同步删除结果。'}`;
+            } catch (_) { state.options.showToast(ADB_I18N.t("ui_script_deleted_but_its_saved_draft_could_not_be_cleared")); }
+            const text = result.registrationUpdated ? ADB_I18N.t("ui_script_deleted_reload_open_pages_to_remove_its_effects")
+                : ADB_I18N.t("ui_deleted_from_the_library_but_future_injection_may_not_have_stoppe", [ADB_I18N.translate(result.status?.guidance) || ADB_I18N.t("ui_reload_the_extension_to_synchronize_the_deletion")]);
             feedback(state, text, !result.registrationUpdated);
             state.options.showToast(text);
             state.options.onSaved();
         } catch (error) {
-            const text = error.code === 'REVISION_CONFLICT' ? '脚本库已被更新，本次未删除。请查看最新内容后重新确认。'
-                : error.code === 'SCRIPT_NOT_FOUND' ? '脚本已被其他操作删除，请刷新列表。'
-                : error.message || '删除失败，请重试。';
+            const text = error.code === 'REVISION_CONFLICT' ? ADB_I18N.t("ui_the_library_changed_so_nothing_was_deleted_review_the_latest_vers")
+                : error.code === 'SCRIPT_NOT_FOUND' ? ADB_I18N.t("ui_the_script_was_already_deleted_refresh_the_list")
+                : ADB_I18N.error(error) || ADB_I18N.t("ui_deletion_failed_please_retry");
             feedback(state, text, true);
             state.options.showToast(text);
             if (error.code === 'REVISION_CONFLICT') state.options.onSaved();
@@ -212,7 +212,7 @@
             editor.dataset.field = field;
             const input = element(field === 'name' ? 'input' : 'textarea', `library-${field}-input`);
             input.value = state.drafts[field].value;
-            input.setAttribute('aria-label', field === 'name' ? '脚本名称' : '匹配网站，每行一个规则');
+            ADB_UI.bind(input, () => field === 'name' ? ADB_I18N.t("ui_script_name") : ADB_I18N.t("ui_website_matches_one_pattern_per_line"), "aria-label");
             if (field === 'name') { input.type = 'text'; input.maxLength = 200; input.autocomplete = 'off'; }
             else {
                 input.rows = Math.min(6, Math.max(1, input.value.split(/\r?\n/).length));
@@ -222,7 +222,7 @@
             input.addEventListener('input', () => {
                 state.drafts[field].value = input.value;
                 if (field === 'matches') input.rows = Math.min(6, Math.max(1, input.value.split(/\r?\n/).length));
-                feedback(state, '有未保存的修改，点击保存后生效。');
+                feedback(state, ADB_I18N.t("ui_unsaved_changes_select_save_to_apply_them"));
                 controls(state);
                 persist(state, field, state.drafts[field]).catch(() => {});
             });
@@ -233,10 +233,10 @@
                 }
             });
             const actions = element('div', 'library-quick-actions');
-            view.save = button('library-quick-save', '保存', () => saveField(state));
-            actions.append(view.save, button('library-quick-cancel', '取消', () => cancelField(state)));
+            view.save = button('library-quick-save', ADB_I18N.t("ui_save"), () => saveField(state));
+            actions.append(view.save, button('library-quick-cancel', ADB_I18N.t("ui_cancel"), () => cancelField(state)));
             editor.append(input);
-            if (field === 'matches') editor.append(element('p', '', '每行一个规则，例如 https://example.com/*，最多 20 个；不支持全站匹配。'));
+            if (field === 'matches') editor.append(element('p', '', ADB_I18N.t("ui_one_pattern_per_line_e_g_https_example_com_up_to_20_patterns_matc")));
             editor.append(actions);
             (field === 'name' ? view.nameGroup : view.matchGroup).append(editor);
             view.input = input;
@@ -244,15 +244,15 @@
         if (state.confirmation && !state.deleted) {
             const confirmation = element('div', 'library-delete-confirmation');
             confirmation.append(element('p', 'library-delete-message',
-                `确定删除“${state.confirmation.name}”？脚本和未保存草稿将移除，无法撤销；已打开页面的效果需刷新后清除。`));
+                ADB_I18N.t("ui_delete_0_the_script_and_unsaved_drafts_will_be_permanently_remove", [state.confirmation.name])));
             const actions = element('div', 'library-quick-actions');
-            view.cancelDelete = button('library-delete-cancel', '取消', () => {
+            view.cancelDelete = button('library-delete-cancel', ADB_I18N.t("ui_cancel"), () => {
                 if (state.busy || externalBusy) return;
                 state.confirmation = null;
                 renderTransient(state);
                 view.remove.focus();
             });
-            actions.append(button('library-delete-confirm', '确认删除', () => deleteScript(state)), view.cancelDelete);
+            actions.append(button('library-delete-confirm', ADB_I18N.t("ui_delete_script"), () => deleteScript(state)), view.cancelDelete);
             confirmation.append(actions);
             view.card.append(confirmation);
         }
@@ -269,8 +269,8 @@
                 if (validDraft(draft) && draft.value !== draft.baseValue) state.drafts[field] = { ...draft };
             }
             state.active = fields.find(field => state.drafts[field]) || null;
-            if (state.active) feedback(state, '已恢复未保存草稿。保存时会检查脚本库是否被其他操作更新。');
-        } catch (_) { feedback(state, '无法读取暂存草稿，请刷新列表重试。', true); state.restoreFailed = true; }
+            if (state.active) feedback(state, ADB_I18N.t("ui_unsaved_draft_restored_saving_will_check_for_changes_made_elsewhe"));
+        } catch (_) { feedback(state, ADB_I18N.t("ui_could_not_read_the_draft_refresh_the_list_to_retry"), true); state.restoreFailed = true; }
         finally { state.loading = false; renderTransient(state); }
     }
     function mount(card, script, revision, options) {
@@ -289,13 +289,13 @@
         const matchGroup = card.querySelector('.library-match-group');
         const matchHeading = card.querySelector('.library-match-heading');
         const actions = card.querySelector('.library-card-actions');
-        const remove = button('library-delete', '删除', () => requestDelete(state));
+        const remove = button('library-delete', ADB_I18N.t("ui_delete"), () => requestDelete(state));
         remove.dataset.scriptId = script.id;
         for (const [field, parent] of [['name', nameGroup], ['matches', matchHeading]]) {
             const edit = button(`library-${field}-edit library-pencil`, '✎', () => openField(state, field));
             edit.dataset.scriptId = script.id;
-            edit.title = field === 'name' ? '修改脚本名称' : '修改匹配网站';
-            edit.setAttribute('aria-label', edit.title);
+            ADB_UI.bind(edit, () => field === 'name' ? ADB_I18N.t("ui_edit_script_name") : ADB_I18N.t("ui_edit_website_matches"), "title");
+            ADB_UI.bind(edit, () => edit.title, 'aria-label');
             parent.append(edit);
         }
         actions.append(remove);

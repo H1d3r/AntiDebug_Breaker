@@ -3,6 +3,17 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
     const COLOR = {
         log: '#1475b2',
         info: '#606060',
@@ -888,7 +899,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
             saveAs(xhr.response, name, opts);
         };
         xhr.onerror = function () {
-            console.error('could not download file');
+            console.error(adbLogText("log_devtools_download_failed", "could not download file"));
         };
         xhr.send();
     }
@@ -990,7 +1001,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
         // Mostly only available on user interaction and the fileReader is async so...
         popup = popup || open('', '_blank');
         if (popup) {
-            popup.document.title = popup.document.body.innerText = 'downloading...';
+            popup.document.title = popup.document.body.innerText = adbLogText("log_devtools_downloading", "downloading...");
         }
         if (typeof blob === 'string')
             return download(blob, name, opts);
@@ -1065,14 +1076,14 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
     // ---
     function checkClipboardAccess() {
         if (!('clipboard' in navigator)) {
-            toastMessage(`Your browser doesn't support the Clipboard API`, 'error');
+            toastMessage(adbLogText("log_devtools_clipboard_unsupported", "Your browser doesn't support the Clipboard API"), 'error');
             return true;
         }
     }
     function checkNotFocusedError(error) {
         if (error instanceof Error &&
             error.message.toLowerCase().includes('document is not focused')) {
-            toastMessage('You need to activate the "Emulate a focused page" setting in the "Rendering" panel of devtools.', 'warn');
+            toastMessage(adbLogText("log_devtools_emulate_focus", "You need to activate the \"Emulate a focused page\" setting in the \"Rendering\" panel of devtools."), 'warn');
             return true;
         }
         return false;
@@ -1082,12 +1093,12 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
             return;
         try {
             await navigator.clipboard.writeText(JSON.stringify(pinia.state.value));
-            toastMessage('Global state copied to clipboard.');
+            toastMessage(adbLogText("log_devtools_state_copied", "Global state copied to clipboard."));
         }
         catch (error) {
             if (checkNotFocusedError(error))
                 return;
-            toastMessage(`Failed to serialize the state. Check the console for more details.`, 'error');
+            toastMessage(adbLogText("log_devtools_state_copy_failed", "Failed to serialize the state. Check the console for more details."), 'error');
             console.error(error);
         }
     }
@@ -1096,12 +1107,12 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
             return;
         try {
             loadStoresState(pinia, JSON.parse(await navigator.clipboard.readText()));
-            toastMessage('Global state pasted from clipboard.');
+            toastMessage(adbLogText("log_devtools_state_pasted", "Global state pasted from clipboard."));
         }
         catch (error) {
             if (checkNotFocusedError(error))
                 return;
-            toastMessage(`Failed to deserialize the state from clipboard. Check the console for more details.`, 'error');
+            toastMessage(adbLogText("log_devtools_state_paste_failed", "Failed to deserialize the state from clipboard. Check the console for more details."), 'error');
             console.error(error);
         }
     }
@@ -1112,7 +1123,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
             }), 'pinia-state.json');
         }
         catch (error) {
-            toastMessage(`Failed to export the state as JSON. Check the console for more details.`, 'error');
+            toastMessage(adbLogText("log_devtools_state_export_failed", "Failed to export the state as JSON. Check the console for more details."), 'error');
             console.error(error);
         }
     }
@@ -1150,10 +1161,10 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
                 return;
             const { text, file } = result;
             loadStoresState(pinia, JSON.parse(text));
-            toastMessage(`Global state imported from "${file.name}".`);
+            toastMessage(adbLogText("log_devtools_state_imported", "Global state imported from \"{0}\".", [`${file.name}`]));
         }
         catch (error) {
-            toastMessage(`Failed to import the state from JSON. Check the console for more details.`, 'error');
+            toastMessage(adbLogText("log_devtools_state_import_failed", "Failed to import the state from JSON. Check the console for more details."), 'error');
             console.error(error);
         }
     }
@@ -1312,7 +1323,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
             app,
         }, (api) => {
             if (typeof api.now !== 'function') {
-                toastMessage('You seem to be using an outdated version of Vue Devtools. Are you still using the Beta release instead of the stable one? You can find the links at https://devtools.vuejs.org/guide/installation.html.');
+                toastMessage(adbLogText("log_devtools_outdated", "You seem to be using an outdated version of Vue Devtools. Are you still using the Beta release instead of the stable one? You can find the links at https://devtools.vuejs.org/guide/installation.html."));
             }
             api.addTimelineLayer({
                 id: MUTATIONS_LAYER_ID,
@@ -1330,7 +1341,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
                         action: () => {
                             actionGlobalCopyState(pinia);
                         },
-                        tooltip: 'Serialize and copy the state',
+                        tooltip: adbLogText("log_devtools_copy_state", "Serialize and copy the state"),
                     },
                     {
                         icon: 'content_paste',
@@ -1339,14 +1350,14 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
                             api.sendInspectorTree(INSPECTOR_ID);
                             api.sendInspectorState(INSPECTOR_ID);
                         },
-                        tooltip: 'Replace the state with the content of your clipboard',
+                        tooltip: adbLogText("log_devtools_paste_state", "Replace the state with the content of your clipboard"),
                     },
                     {
                         icon: 'save',
                         action: () => {
                             actionGlobalSaveState(pinia);
                         },
-                        tooltip: 'Save the state as a JSON file',
+                        tooltip: adbLogText("log_devtools_save_state", "Save the state as a JSON file"),
                     },
                     {
                         icon: 'folder_open',
@@ -1355,24 +1366,24 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
                             api.sendInspectorTree(INSPECTOR_ID);
                             api.sendInspectorState(INSPECTOR_ID);
                         },
-                        tooltip: 'Import the state from a JSON file',
+                        tooltip: adbLogText("log_devtools_import_state", "Import the state from a JSON file"),
                     },
                 ],
                 nodeActions: [
                     {
                         icon: 'restore',
-                        tooltip: 'Reset the state (with "$reset")',
+                        tooltip: adbLogText("log_devtools_reset_state", "Reset the state (with \"$reset\")"),
                         action: (nodeId) => {
                             const store = pinia._s.get(nodeId);
                             if (!store) {
-                                toastMessage(`Cannot reset "${nodeId}" store because it wasn't found.`, 'warn');
+                                toastMessage(adbLogText("log_devtools_reset_not_found", "Cannot reset \"{0}\" store because it wasn't found.", [`${nodeId}`]), 'warn');
                             }
                             else if (typeof store.$reset !== 'function') {
-                                toastMessage(`Cannot reset "${nodeId}" store because it doesn't have a "$reset" method implemented.`, 'warn');
+                                toastMessage(adbLogText("log_devtools_reset_unsupported", "Cannot reset \"{0}\" store because it doesn't have a \"$reset\" method implemented.", [`${nodeId}`]), 'warn');
                             }
                             else {
                                 store.$reset();
-                                toastMessage(`Store "${nodeId}" reset.`);
+                                toastMessage(adbLogText("log_devtools_store_reset", "Store \"{0}\" reset.", [`${nodeId}`]));
                             }
                         },
                     },
@@ -1395,7 +1406,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
                                         actions: [
                                             {
                                                 icon: 'restore',
-                                                tooltip: 'Reset the state of this store',
+                                                tooltip: adbLogText("log_devtools_reset_store", "Reset the state of this store"),
                                                 action: () => store.$reset(),
                                             },
                                         ],
@@ -1461,7 +1472,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
                         ? pinia
                         : pinia._s.get(payload.nodeId);
                     if (!inspectedStore) {
-                        return toastMessage(`store "${payload.nodeId}" not found`, 'error');
+                        return toastMessage(adbLogText("log_devtools_store_not_found", "store \"{0}\" not found", [`${payload.nodeId}`]), 'error');
                     }
                     const { path } = payload;
                     if (!isPinia(inspectedStore)) {
@@ -1486,11 +1497,11 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
                     const storeId = payload.type.replace(/^🍍\s*/, '');
                     const store = pinia._s.get(storeId);
                     if (!store) {
-                        return toastMessage(`store "${storeId}" not found`, 'error');
+                        return toastMessage(adbLogText("log_devtools_store_not_found", "store \"{0}\" not found", [`${storeId}`]), 'error');
                     }
                     const { path } = payload;
                     if (path[0] !== 'state') {
-                        return toastMessage(`Invalid path for store "${storeId}":\n${path}\nOnly state can be modified.`);
+                        return toastMessage(adbLogText("log_devtools_store_invalid_path", "Invalid path for store \"{0}\":\n{1}\nOnly state can be modified.", [`${storeId}`, `${path}`]));
                     }
                     // rewrite the first entry to be able to directly set the state as
                     // well as any other path
@@ -1516,7 +1527,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
             app,
             settings: {
                 logStoreChanges: {
-                    label: 'Notify about new/deleted stores',
+                    label: adbLogText("log_devtools_notify_stores", "Notify about new/deleted stores"),
                     type: 'boolean',
                     defaultValue: true,
                 },
@@ -1667,14 +1678,14 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
                 api.sendInspectorTree(INSPECTOR_ID);
                 api.sendInspectorState(INSPECTOR_ID);
                 api.getSettings().logStoreChanges &&
-                    toastMessage(`Disposed "${store.$id}" store 🗑`);
+                    toastMessage(adbLogText("log_devtools_store_disposed", "Disposed \"{0}\" store 🗑", [`${store.$id}`]));
             };
             // trigger an update so it can display new registered stores
             api.notifyComponentUpdate();
             api.sendInspectorTree(INSPECTOR_ID);
             api.sendInspectorState(INSPECTOR_ID);
             api.getSettings().logStoreChanges &&
-                toastMessage(`"${store.$id}" store installed 🆕`);
+                toastMessage(adbLogText("log_devtools_store_installed", "\"{0}\" store installed 🆕", [`${store.$id}`]));
         });
     }
     let runningActionId = 0;
@@ -1781,7 +1792,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
         devtools.emit('init', Vue);
         try {
             const version = Vue.version || 'unknown';
-            console.log(`[AntiDebug Breaker] Vue Devtools已开启，Vue版本：${version}`);
+            console.log(adbLogText("log_vue_devtools_enabled", "[AntiDebug Breaker] Vue Devtools enabled; Vue version: {0}", [`${version}`]));
         } catch (e) { }
         return true;
     }
@@ -1799,7 +1810,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("detectorExec")) {
             Static: Symbol.for('v-stc'),
         });
         try {
-            console.log(`[AntiDebug Breaker] Vue Devtools已开启，Vue版本：${version || 'unknown'}`);
+            console.log(adbLogText("log_vue_devtools_enabled", "[AntiDebug Breaker] Vue Devtools enabled; Vue version: {0}", [`${version || 'unknown'}`]));
         } catch (e) { }
         // TODO How to trigger the devtools refresh when vue instance changed.
         // Maybe `devtools.emit("flush")` can be used, but i don't know when, where and how to use it.

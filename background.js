@@ -1,5 +1,5 @@
 /* The background owns configuration rules; popup and the local MCP bridge use the same API. */
-importScripts('extension/policy.js', 'extension/user-scripts.js', 'extension/service.js', 'extension/bridge.js', 'extension/debugger.js');
+importScripts('i18n/core.js', 'i18n/errors.js', 'i18n/catalog.js', 'extension/policy.js', 'extension/user-scripts.js', 'extension/service.js', 'extension/bridge.js', 'extension/debugger.js');
 
 let bridge;
 // Register debugger lifecycle listeners synchronously when the MV3 worker starts.
@@ -11,6 +11,7 @@ const serviceReady = fetch(chrome.runtime.getURL('scripts.json')).then(response 
     if (!response.ok) throw new Error('Could not load the extension script catalog.');
     return response.json();
 }).then(async catalog => {
+    await ADB_I18N.init(chrome);
     const service = new ADBService.ControlService(chrome, catalog, {
         debuggerController,
         emit(event, data) {
@@ -78,6 +79,12 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     serviceReady.then(async service => {
         if (Object.prototype.hasOwnProperty.call(changes, 'adb_mcp')) await bridge.configure();
         await service.reconcileExternal(changes);
+        if (Object.prototype.hasOwnProperty.call(changes, 'adb_language')) {
+            // Only presentation changes in already-open pages; never reinstall Hooks.
+            for (const tab of await chrome.tabs.query({})) {
+                chrome.tabs.sendMessage(tab.id, { type: 'ADB_LANGUAGE_CHANGED', locale: ADB_I18N.locale }).catch(() => {});
+            }
+        }
     }).catch(error => console.warn('[AntiDebug] Configuration update failed:', error.message));
 });
 chrome.alarms.onAlarm.addListener(alarm => { serviceReady.then(() => bridge.alarm(alarm)).catch(() => {}); });

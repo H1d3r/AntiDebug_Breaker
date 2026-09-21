@@ -14,6 +14,17 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_SMcrypto")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
     function sm3_encrypt_test(func) {
         try {
             return func("123456");
@@ -92,9 +103,9 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_SMcrypto")) {
     function my_doEncrypt() {
         let result = Reflect.apply(raw_doEncrypt, this, arguments);
         window.__ADB_OBSERVER__?.emit("Hook_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM2", operation: "encrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
-        console.log("SM2 加密明文:", arguments[0]);
-        console.log("SM2 加密公钥:", arguments[1]);
-        console.log("SM2 加密密文:", result);
+        console.log(adbLogText("log_sm2_encrypt_input", "SM2 encryption plaintext:"), arguments[0]);
+        console.log(adbLogText("log_sm2_encrypt_key", "SM2 encryption public key:"), arguments[1]);
+        console.log(adbLogText("log_sm2_encrypt_output", "SM2 encryption ciphertext:"), result);
         return result;
     }
 
@@ -105,9 +116,9 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_SMcrypto")) {
     function my_doDecrypt() {
         let result = Reflect.apply(raw_doDecrypt, this, arguments);
         window.__ADB_OBSERVER__?.emit("Hook_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM2", operation: "decrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
-        console.log("SM2 解密密文:", arguments[0]);
-        console.log("SM2 解密私钥:", arguments[1]);
-        console.log("SM2 解密明文:", result);
+        console.log(adbLogText("log_sm2_decrypt_input", "SM2 decryption ciphertext:"), arguments[0]);
+        console.log(adbLogText("log_sm2_decrypt_key", "SM2 decryption private key:"), arguments[1]);
+        console.log(adbLogText("log_sm2_decrypt_output", "SM2 decryption plaintext:"), result);
         return result;
     }
 
@@ -118,20 +129,20 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_SMcrypto")) {
     function my_sm4_encrypt() {
         let result = Reflect.apply(raw_sm4_encrypt, this, arguments);
         window.__ADB_OBSERVER__?.emit("Hook_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM4", operation: "encrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
-        console.log("SM4 加密明文:", arguments[0]);
-        console.log("SM4 加密key:", arguments[1]);
+        console.log(adbLogText("log_sm4_encrypt_input", "SM4 encryption plaintext:"), arguments[0]);
+        console.log(adbLogText("log_sm4_encrypt_key", "SM4 encryption key:"), arguments[1]);
         if (arguments[2] && typeof arguments[2] === "object") {
             if (arguments[2].cipherType) {
-                console.log("SM4 加密数据格式:", arguments[2].cipherType);
+                console.log(adbLogText("log_sm4_encrypt_format", "SM4 encryption data format:"), arguments[2].cipherType);
             }
             if (arguments[2].iv) {
-                console.log("SM4 加密iv:", arguments[2].iv);
+                console.log(adbLogText("log_sm4_encrypt_iv", "SM4 encryption IV:"), arguments[2].iv);
             }
             if (arguments[2].mode) {
-                console.log("SM4 加密模式:", arguments[2].mode);
+                console.log(adbLogText("log_sm4_encrypt_mode", "SM4 encryption mode:"), arguments[2].mode);
             }
         }
-        console.log("SM4 加密密文：",result);
+        console.log(adbLogText("log_sm4_encrypt_output", "SM4 encryption ciphertext:"),result);
         return result;
     }
 
@@ -142,20 +153,20 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_SMcrypto")) {
     function my_sm4_decrypt() {
         let result = Reflect.apply(raw_sm4_decrypt, this, arguments);
         window.__ADB_OBSERVER__?.emit("Hook_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM4", operation: "decrypt", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
-        console.log("SM4 解密密文:", arguments[0]);
-        console.log("SM4 解密key:", arguments[1]);
+        console.log(adbLogText("log_sm4_decrypt_input", "SM4 decryption ciphertext:"), arguments[0]);
+        console.log(adbLogText("log_sm4_decrypt_key", "SM4 decryption key:"), arguments[1]);
         if (arguments[2] && typeof arguments[2] === "object") {
             if (arguments[2].cipherType) {
-                console.log("SM4 解密数据格式:", arguments[2].cipherType);
+                console.log(adbLogText("log_sm4_decrypt_format", "SM4 decryption data format:"), arguments[2].cipherType);
             }
             if (arguments[2].iv) {
-                console.log("SM4 解密iv:", arguments[2].iv);
+                console.log(adbLogText("log_sm4_decrypt_iv", "SM4 decryption IV:"), arguments[2].iv);
             }
             if (arguments[2].mode) {
-                console.log("SM4 解密模式:", arguments[2].mode);
+                console.log(adbLogText("log_sm4_decrypt_mode", "SM4 decryption mode:"), arguments[2].mode);
             }
         }
-        console.log("SM4 解密明文：",result);
+        console.log(adbLogText("log_sm4_decrypt_output", "SM4 decryption plaintext:"),result);
         return result;
     }
 
@@ -166,8 +177,8 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_SMcrypto")) {
     function my_SM3() {
         let result = Reflect.apply(raw_sm3, this, arguments);
         window.__ADB_OBSERVER__?.emit("Hook_SMcrypto", "crypto", { library: "sm-crypto", algorithm: "SM3", operation: "digest", input: arguments[0], key: arguments[1], options: arguments[2], output: result });
-        console.log("SM3 加密明文：:", arguments[0]);
-        console.log("SM3 加密密文：:", result);
+        console.log(adbLogText("log_sm3_input", "SM3 input:"), arguments[0]);
+        console.log(adbLogText("log_sm3_output", "SM3 output:"), result);
         return result;
     }
 

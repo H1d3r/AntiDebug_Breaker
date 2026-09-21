@@ -15,6 +15,17 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_xhr_open")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
     const SCRIPT_ID = 'hook_xhr_open';
 
     function clear_Antidebug(id) {
@@ -36,7 +47,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_xhr_open")) {
 
         XMLHttpRequest.prototype.open = function () {
             if (flag === "0") {
-                console.log("初始化xhr请求：method ---> %s, url ---> %s", arguments[0], arguments[1]);
+                console.log(adbLogText("log_xhr_open", "Initializing XHR request: method ---> %s, url ---> %s"), arguments[0], arguments[1]);
                 window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                 if (is_debugger === "1") {
                     debugger;
@@ -46,7 +57,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_xhr_open")) {
                 }
             } else {
                 if (arguments[1] && param.some(item => arguments[1].includes(item))) {
-                    console.log("捕获到初始化xhr请求设置 url ---> %s method ---> %s", arguments[1], arguments[0]);
+                    console.log(adbLogText("log_xhr_open_matched", "Matched XHR request initialization: url ---> %s method ---> %s"), arguments[1], arguments[0]);
                     window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                     if (is_debugger === "1") {
                         debugger;

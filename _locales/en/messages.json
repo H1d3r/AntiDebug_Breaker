@@ -1,0 +1,4 @@
+{
+  "extension_name": { "message": "AntiDebug Breaker" },
+  "extension_description": { "message": "JavaScript analysis tools: anti-debugging, API hooks, Vue/React routes, and Agent browser control via MCP." }
+}

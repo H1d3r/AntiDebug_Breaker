@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "repository": "0xsdeo/AntiDebug_Breaker",
-  "tag": "v3.1.1",
-  "extensionVersion": "3.1.1",
+  "tag": "v3.1.2",
+  "extensionVersion": "3.1.2",
   "mcpVersion": "0.2.0",
-  "assetName": "AntiDebug_Breaker-Agent-3.1.1.zip"
+  "assetName": "AntiDebug_Breaker-Agent-3.1.2.zip"
 }

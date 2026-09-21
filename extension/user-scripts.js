@@ -12,7 +12,7 @@
     const clone = value => JSON.parse(JSON.stringify(value));
     const bytes = value => new TextEncoder().encode(value).length;
     const empty = () => ({ schemaVersion: 1, revision: 0, scripts: [] });
-    const errorData = error => ({ code: error.code || 'USER_SCRIPTS_ERROR', message: error.message || String(error) });
+    const errorData = error => ({ ...P.serializeError(error), code: error.code || 'USER_SCRIPTS_ERROR' });
     const guidance = '请打开 chrome://extensions，在 AntiDebug Breaker 的“详情”中开启“允许用户脚本”（Chrome 138 及以上）；Chrome 120–137 请开启扩展页的“开发者模式”。开关开启后重试；必要时重新加载扩展。';
 
     function validId(id) {
@@ -158,8 +158,8 @@
         }
         _status(library) {
             const scripts = library.scripts.map(script => this._metadata(script));
-            return { available: this.available, reason: this.available ? null : this.unavailableReason,
-                guidance: this.available ? null : guidance, revision: library.revision, scriptCount: scripts.length,
+            return { available: this.available, reason: this.available ? null : P.message(this.unavailableReason),
+                guidance: this.available ? null : P.message(guidance), revision: library.revision, scriptCount: scripts.length,
                 enabledCount: scripts.filter(script => script.enabled).length,
                 registeredCount: this.observed ? this.observed.size : null,
                 matchingCount: this.available ? scripts.filter(script => script.registered).length : null,

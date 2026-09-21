@@ -1,10 +1,12 @@
 (function (root, factory) {
     const policy = typeof module === 'object' && module.exports ? require('./policy.js') : root.ADBPolicy;
     const userScripts = typeof module === 'object' && module.exports ? require('./user-scripts.js') : root.ADBUserScripts;
-    const api = factory(policy, userScripts);
+    const i18n = typeof module === 'object' && module.exports ? require('../i18n/core.js') : root.ADB_I18N;
+    if (typeof module === 'object' && module.exports) require('../i18n/catalog.js');
+    const api = factory(policy, userScripts, i18n);
     if (typeof module === 'object' && module.exports) module.exports = api;
     else root.ADBService = api;
-})(globalThis, function (P, U) {
+})(globalThis, function (P, U, I) {
     'use strict';
     const REVISION = 'adb_revision';
     const SESSION = 'adb_browser_session';
@@ -71,6 +73,8 @@
         configFor(script, data) {
             return P.normalizeConfig(script, data[`${script.id}_config`]);
         }
+        language(data) { return I.resolve(data.adb_language, this.chrome.i18n?.getUILanguage?.() || 'en'); }
+        languageFiles(data) { return ['i18n/core.js', 'i18n/logs.js', `i18n/page-${this.language(data)}.js`]; }
         snapshot(data, tab, record) {
             const mode = modeOf(data);
             const ids = P.normalize(mode === 'global' ? data.global_scripts : data[hostOf(tab)], this.catalog);
@@ -89,6 +93,7 @@
                 documentId: record ? record.documentId : null,
                 frameId: 0,
                 revision: revisionOf(data),
+                locale: this.language(data),
                 mode,
                 hostname: hostOf(tab),
                 enabledScripts: P.combine(ids, this.catalog),
@@ -124,17 +129,20 @@
             if (!/^[A-Za-z0-9_-]+$/.test(id) || (id !== 'adb_runtime' && !this.catalog.some(script => script.id === id))) {
                 P.fail('UNKNOWN_SCRIPT', 'Only packaged catalog scripts can be prepared.', { scriptId: id });
             }
-            if (!this.scriptSources.has(id)) {
+            return this.packagedFile(`scripts/${id}.js`);
+        }
+        async packagedFile(file) {
+            if (!this.scriptSources.has(file)) {
                 const loading = (async () => {
-                    const response = await this.fetch(this.chrome.runtime.getURL(`scripts/${id}.js`));
-                    if (!response.ok) P.fail('SCRIPT_SOURCE_UNAVAILABLE', 'Could not read a packaged script.', { scriptId: id });
+                    const response = await this.fetch(this.chrome.runtime.getURL(file));
+                    if (!response.ok) P.fail('SCRIPT_SOURCE_UNAVAILABLE', 'Could not read a packaged script.', { file });
                     return response.text();
                 })();
-                this.scriptSources.set(id, loading);
+                this.scriptSources.set(file, loading);
                 // A transient read failure must not poison the cache for subsequent requests.
-                loading.catch(() => { this.scriptSources.delete(id); });
+                loading.catch(() => { this.scriptSources.delete(file); });
             }
-            return this.scriptSources.get(id);
+            return this.scriptSources.get(file);
         }
         async prepareScripts(params) {
             const tab = await this.tab(params.tabId);
@@ -152,6 +160,10 @@
             }
             const ids = ['adb_runtime', ...snapshot.enabledScripts];
             const files = await Promise.all(ids.map(async id => ({ id, source: await this.packagedSource(id) })));
+            // Keep the existing early-bundle schema and runtime-first contract.
+            // Locale and dictionaries execute synchronously before any Hook.
+            const languageSources = await Promise.all(this.languageFiles(data).map(file => this.packagedFile(file)));
+            files[0].source = languageSources.join('\n;\n') + '\n;\n' + files[0].source;
             return { hostname: snapshot.hostname, mode: snapshot.mode, revision: snapshot.revision,
                 enabledScripts: snapshot.enabledScripts, configs: snapshot.configs, mergedHooks: snapshot.mergedHooks, files };
         }
@@ -177,7 +189,7 @@
                 // One ordered registration per scope ensures the shared runtime runs first.
                 desired.push({
                     id: `ad2_${encodeURIComponent(scope).replace(/%/g, '_')}`,
-                    js: ['scripts/adb_runtime.js', ...scripts.map(id => `scripts/${id}.js`)],
+                    js: [...this.languageFiles(data), 'scripts/adb_runtime.js', ...scripts.map(id => `scripts/${id}.js`)],
                     matches,
                     runAt: 'document_start',
                     world: 'MAIN',
@@ -558,7 +570,11 @@
                 case 'pages.list': return { browserSessionId: this.browserSessionId, pages: (await this.chrome.tabs.query({})).map(tab => ({
                     tabId: tab.id, windowId: tab.windowId, url: tab.url, title: tab.title, active: tab.active, status: tab.status,
                     target: this.documents.has(tab.id) ? this.target(this.documents.get(tab.id)) : null })) };
-                case 'scripts.list': return { scripts: this.catalog.map(script => ({ ...script, configSchema: P.configSchema(script), configurable: !!P.configSchema(script),
+                case 'scripts.list': return { scripts: this.catalog.map(script => ({ ...script,
+                    ...(context.source === 'mcp' ? Object.fromEntries(['name', 'description'].map(field => {
+                        const key = `catalog_${script.id}_${field}`;
+                        return [field, I.has(key) ? I.t(key, [], 'en') : script[field]];
+                    })) : {}), configSchema: P.configSchema(script), configurable: !!P.configSchema(script),
                     combination: script.id === P.COMBINED ? P.PARTS : undefined })) };
                 case 'state.get': return this.state(params.tabId);
                 case 'routes.get': return this.getRoutes(params);
@@ -568,6 +584,10 @@
         }
         async reconcileExternal(changes) {
             await this.scriptLibrary.reconcileExternal(changes);
+            if (P.own(changes, 'adb_language')) {
+                // Language is presentation state, not a Hook-config revision.
+                await this.exclusive(async () => this.reconcile(await this.chrome.storage.local.get(null)));
+            }
             if (P.own(changes, REVISION)) return;
             const relevant = Object.keys(changes).some(key => key === 'antidebug_mode' || key === 'global_scripts' ||
                 (isHost(key) && Array.isArray(changes[key].newValue)) || this.catalog.some(script => `${script.id}_config` === key));

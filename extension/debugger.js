@@ -170,7 +170,7 @@
             }
             if (!await this._controlEnabled()) {
                 void this.detachAll('control_disabled');
-                fail('DEBUGGER_CONTROL_DISABLED', 'Open the extension MCP panel and click "重新启用浏览器控制", or "启用 MCP 并允许 Agent 控制浏览器" if MCP is stopped.');
+                fail('DEBUGGER_CONTROL_DISABLED', 'Open the extension MCP panel and click "Re-enable browser control", or "Enable MCP and allow browser control" if MCP is stopped.');
             }
             this._connected();
             if (!this._available()) fail('DEBUGGER_UNAVAILABLE', 'The Chrome debugger API is unavailable.');
@@ -382,6 +382,27 @@
                     active: tab.active, url: 'about:blank' };
                 if (operation.cancelError) this._emit('page.created', { ...operation.tab, late: true });
                 current();
+                // Chrome can return the new identity before tabs.get exposes its
+                // blank document URL. Wait only for our own tab; do not relax the
+                // normal debugger URL checks or overwrite a user's navigation.
+                while (true) {
+                    current();
+                    const observed = await this._invoke(this.chrome.tabs, 'get', [tab.id], 'TAB_NOT_FOUND');
+                    current();
+                    if ((observed.url && observed.url !== 'about:blank') ||
+                        (observed.pendingUrl && observed.pendingUrl !== 'about:blank')) {
+                        fail('TAB_CREATE_CANCELLED', 'Tab creation was cancelled: tab_navigated.');
+                    }
+                    if (observed.url === 'about:blank') break;
+                    await new Promise((resolve, reject) => {
+                        const cancelled = error => { clearTimeout(timer); reject(error); };
+                        const timer = setTimeout(() => {
+                            operation.cancelListeners.delete(cancelled);
+                            resolve();
+                        }, 25);
+                        operation.cancelListeners.add(cancelled);
+                    });
+                }
                 await this._authorize();
                 current();
                 return operation.tab;

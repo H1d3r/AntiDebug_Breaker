@@ -15,6 +15,17 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Clear_vue_Navigation_Guards")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
     // let temp_toString = Function.prototype.toString;
     //
     // Function.prototype.toString = function () {
@@ -47,12 +58,12 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Clear_vue_Navigation_Guards")) {
             }
             else if (temp_array[3].includes('beforeEach') || temp_array[2].includes('beforeEach')) {
                 console.log(...arguments);
-                console.log("%c存在全局前置路由守卫并已清除", "color: green;");
+                console.log(adbLogText("log_vue_before_guard_removed", "%cGlobal beforeEach navigation guard detected and removed"), "color: green;");
                 return temp_push.call(this); // 将网站js调用目标方法时所传入的内容传给原方法执行并返回结果
             }
             else if (temp_array[3].includes('beforeResolve') || temp_array[2].includes('beforeResolve')) {
                 console.log(...arguments);
-                console.log("%c存在全局解析守卫并已清除", "color: green;");
+                console.log(adbLogText("log_vue_resolve_guard_removed", "%cGlobal beforeResolve navigation guard detected and removed"), "color: green;");
                 return temp_push.call(this); // 将网站js调用目标方法时所传入的内容传给原方法执行并返回结果
             }
         }

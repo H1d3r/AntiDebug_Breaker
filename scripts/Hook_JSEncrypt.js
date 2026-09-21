@@ -15,6 +15,20 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_JSEncrypt")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
+    // Shared with the combined RSA/SM Hook; never infer installation from translated log text.
+    const adbEncryptMarker = Symbol.for('antidebug-breaker.hook.rsa.encrypt');
+    const adbDecryptMarker = Symbol.for('antidebug-breaker.hook.rsa.decrypt');
     let u, c = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     function f(t) {
         let e, i, r = "";
@@ -61,7 +75,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_JSEncrypt")) {
     Function.prototype.call = function () {
         if (arguments.length === 1 && arguments[0] && arguments[0].__proto__ && typeof arguments[0].__proto__ === 'object' && hasRSAProp(arguments[0].__proto__)) {
             if ("__proto__" in arguments[0].__proto__ && arguments[0].__proto__.__proto__ && Object.hasOwn(arguments[0].__proto__.__proto__, "encrypt") && Object.hasOwn(arguments[0].__proto__.__proto__, "decrypt")) {
-                if (arguments[0].__proto__.__proto__.encrypt.toString().indexOf('RSA加密') === -1) {
+                if (!arguments[0].__proto__.__proto__.encrypt[adbEncryptMarker]) {
 
                     let temp_encrypt = arguments[0].__proto__.__proto__.encrypt;
 
@@ -70,15 +84,16 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_JSEncrypt")) {
 
                         const adbPublicKey = this.getPublicKey();
                         window.__ADB_OBSERVER__?.emit("Hook_JSEncrypt", "crypto", { library: "JSEncrypt", algorithm: "RSA", operation: "encrypt", input: arguments[0], key: adbPublicKey, output: encrypt_text, outputEncoding: "hex" });
-                        console.log("RSA 公钥：\n", adbPublicKey);
-                        console.log("RSA加密 原始数据：", ...arguments);
-                        console.log("RSA加密 Base64 密文：", f(encrypt_text));
+                        console.log(adbLogText("log_rsa_public_key", "RSA public key:\n"), adbPublicKey);
+                        console.log(adbLogText("log_rsa_encrypt_input", "RSA encryption input:"), ...arguments);
+                        console.log(adbLogText("log_rsa_encrypt_output", "RSA encryption ciphertext (Base64):"), f(encrypt_text));
                         console.log("%c---------------------------------------------------------------------", "color: green;");
                         return encrypt_text;
                     }
+                    Object.defineProperty(arguments[0].__proto__.__proto__.encrypt, adbEncryptMarker, { value: true });
                 }
 
-                if (arguments[0].__proto__.__proto__.decrypt.toString().indexOf('RSA解密') === -1) {
+                if (!arguments[0].__proto__.__proto__.decrypt[adbDecryptMarker]) {
 
                     let temp_decrypt = arguments[0].__proto__.__proto__.decrypt;
 
@@ -87,12 +102,13 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("Hook_JSEncrypt")) {
 
                         const adbPrivateKey = this.getPrivateKey();
                         window.__ADB_OBSERVER__?.emit("Hook_JSEncrypt", "crypto", { library: "JSEncrypt", algorithm: "RSA", operation: "decrypt", input: arguments[0], key: adbPrivateKey, output: decrypt_text });
-                        console.log("RSA 私钥：\n", adbPrivateKey);
-                        console.log("RSA解密 Base64 原始数据：", f(...arguments));
-                        console.log("RSA解密 明文：", decrypt_text);
+                        console.log(adbLogText("log_rsa_private_key", "RSA private key:\n"), adbPrivateKey);
+                        console.log(adbLogText("log_rsa_decrypt_input", "RSA decryption input (Base64):"), f(...arguments));
+                        console.log(adbLogText("log_rsa_decrypt_output", "RSA decryption plaintext:"), decrypt_text);
                         console.log("%c---------------------------------------------------------------------", "color: green;");
                         return decrypt_text;
                     }
+                    Object.defineProperty(arguments[0].__proto__.__proto__.decrypt, adbDecryptMarker, { value: true });
                 }
             }
         }

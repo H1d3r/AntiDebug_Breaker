@@ -13,12 +13,23 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_log")) {
 
 (function () {
     'use strict';
+
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
     const readonlyProps = ['log', 'trace', 'groupCollapsed', 'groupEnd'];
     // 代理console对象，实现只读属性，防止方法被重写
     const readonlyConsole = new Proxy(console, {
         set(t, k, v, r) {
             if (readonlyProps.includes(k)) {
-                console.groupCollapsed(`%c有代码试图重写console.${k}方法，已阻止`,"color: #ff6348;", v);
+                console.groupCollapsed(adbLogText("log_console_method_overwrite_blocked", "%cBlocked an attempt to overwrite console.{0}", [`${k}`]),"color: #ff6348;", v);
                 console.trace(); // hidden in collapsed group
                 console.groupEnd();
                 return true;
@@ -37,7 +48,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_log")) {
             return readonlyConsole;
         },
         set: function (v) {
-            console.groupCollapsed("%c有代码试图重写console，已阻止", "color: #ff6348;", v);
+            console.groupCollapsed(adbLogText("log_console_overwrite_blocked", "%cBlocked an attempt to overwrite console"), "color: #ff6348;", v);
             console.trace(); // hidden in collapsed group
             console.groupEnd();
         }

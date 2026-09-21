@@ -1,7 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-
-<head>
+<html lang="zh-CN"><head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AntiDebug Breaker</title>
@@ -12,11 +10,11 @@
 <body>
     <div class="container">
         <header>
-            <a href="https://antidebug-breaker.com/" target="_blank" class="doc-link">使用文档：AntiDebug-Breaker.com</a>
+            <a href="https://antidebug-breaker.com/" target="_blank" class="doc-link" data-i18n="ui_documentation_antidebug_breaker_com">使用文档：AntiDebug-Breaker.com</a>
             <div class="title-container">
                 <!-- 左上角辅助配置按钮 -->
                 <div class="aux-config-wrapper">
-                    <button class="aux-config-btn" id="aux-config-btn" title="辅助配置">
+                    <button class="aux-config-btn" id="aux-config-btn" title="辅助配置" data-i18n-title="ui_preferences">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="4" y1="21" x2="4" y2="14"></line>
                             <line x1="4" y1="10" x2="4" y2="3"></line>
@@ -30,35 +28,25 @@
                         </svg>
                     </button>
                     <!-- 弹出配置面板 -->
-                    <div class="aux-config-panel" id="aux-config-panel">
+                    <div class="aux-config-panel" id="aux-config-panel"><div class="language-setting"><label for="language-select" data-i18n="ui_language">语言</label><select id="language-select"><option value="auto" data-i18n="ui_follow_browser">跟随浏览器</option><option value="zh_CN">简体中文</option><option value="en">English</option></select><p id="language-feedback" role="status" hidden=""></p></div>
                         <div class="aux-config-panel-arrow"></div>
                         <!-- 反反Hook检测开关 -->
                         <div class="antiantiHook-switch-container">
-                            <span class="antiantiHook-text">反Hook检测</span>
+                            <span class="antiantiHook-text" data-i18n="ui_hide_hooks">反Hook检测</span>
                             <label class="mode-switch">
-                                <input type="checkbox" id="antiantiHook-toggle" disabled>
+                                <input type="checkbox" id="antiantiHook-toggle" disabled="">
                                 <span class="mode-slider"></span>
                             </label>
-                            <div class="antiantiHook-tooltip">
-                                开启反Hook检测功能后，可以反制一些常见的Hook检测手段。例如如果打开某个脚本后并未实现功能就可以尝试开启本脚本。<br><br>
-                                <strong>注意：</strong>本脚本目前尚未成熟，可能存在一些未知的bug，请谨慎使用。
-                            </div>
+                            <div class="antiantiHook-tooltip" data-i18n="ui_counteracts_common_hook_detection_techniques_try_this_if_an_enabl">开启反Hook检测功能后，可以反制一些常见的Hook检测手段。例如如果打开某个脚本后并未实现功能就可以尝试开启本脚本。 注意：本脚本目前尚未成熟，可能存在一些未知的bug，请谨慎使用。</div>
                         </div>
                         <!-- 全局/标准模式切换开关 -->
                         <div class="mode-switch-container">
                             <span class="mode-text">标准模式</span>
                             <label class="mode-switch">
-                    <input type="checkbox" id="global-mode-toggle" disabled>
+                    <input type="checkbox" id="global-mode-toggle" disabled="">
                                 <span class="mode-slider"></span>
                             </label>
-                            <div class="mode-tooltip">
-                                开启标准模式/全局模式<br><br>
-                                <strong>标准模式：</strong>插件默认模式，当勾选脚本并刷新网站后，脚本仅会注入到当前网站。<br><br>
-                                <strong>全局模式：</strong>当开启全局模式后，勾选的脚本将注入到每个网站中。<br><br>
-                                注：对于通过file://协议或localhost访问的页面，需要完成以下操作后才能注入脚本：<br /><br />1. 开启全局模式<br />2. 打开 chrome://extensions/
-                                <br />3. 找到 AntiDebug_Breaker，点击「详情」 <br />
-                                4. 开启「允许访问文件网址」<br />
-                            </div>
+                            <div class="mode-tooltip" data-i18n="ui_standard_mode_selected_scripts_apply_to_the_current_website_after">开启标准模式/全局模式 标准模式：插件默认模式，当勾选脚本并刷新网站后，脚本仅会注入到当前网站。 全局模式：当开启全局模式后，勾选的脚本将注入到每个网站中。 注：对于通过file://协议或localhost访问的页面，需要完成以下操作后才能注入脚本：1. 开启全局模式2. 打开 chrome://extensions/ 3. 找到 AntiDebug_Breaker，点击「详情」 4. 开启「允许访问文件网址」</div>
                         </div>
                     </div>
                 </div>
@@ -67,27 +55,25 @@
                 <div class="breaker">Breaker</div>
                 <a href="https://github.com/0xsdeo/AntiDebug_Breaker" target="_blank" class="github-link">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path
-                            d="M12 0C5.374 0 0 5.373 0 12C0 17.302 3.438 21.8 8.207 23.387C8.806 23.498 9 23.126 9 22.81V20.576C5.662 21.302 4.967 19.16 4.967 19.16C4.421 17.773 3.634 17.404 3.634 17.404C2.545 16.659 3.717 16.675 3.717 16.675C4.922 16.759 5.556 17.912 5.556 17.912C6.626 19.746 8.363 19.216 9.048 18.909C9.155 18.134 9.466 17.604 9.81 17.305C7.145 17.001 4.343 15.971 4.343 11.374C4.343 10.063 4.812 8.993 5.579 8.153C5.455 7.85 5.044 6.628 5.696 4.977C5.696 4.977 6.704 4.655 8.997 6.207C9.954 5.941 10.98 5.808 12 5.803C13.02 5.808 14.047 5.941 15.006 6.207C17.297 4.655 18.303 4.977 18.303 4.977C18.956 6.629 18.545 7.851 18.421 8.153C19.191 8.993 19.656 10.064 19.656 11.374C19.656 15.983 16.849 16.998 14.177 17.295C14.607 17.667 15 18.397 15 19.517V22.81C15 23.129 15.192 23.504 15.801 23.386C20.566 21.797 24 17.3 24 12C24 5.373 18.627 0 12 0Z"
-                            fill="currentColor" />
+                        <path d="M12 0C5.374 0 0 5.373 0 12C0 17.302 3.438 21.8 8.207 23.387C8.806 23.498 9 23.126 9 22.81V20.576C5.662 21.302 4.967 19.16 4.967 19.16C4.421 17.773 3.634 17.404 3.634 17.404C2.545 16.659 3.717 16.675 3.717 16.675C4.922 16.759 5.556 17.912 5.556 17.912C6.626 19.746 8.363 19.216 9.048 18.909C9.155 18.134 9.466 17.604 9.81 17.305C7.145 17.001 4.343 15.971 4.343 11.374C4.343 10.063 4.812 8.993 5.579 8.153C5.455 7.85 5.044 6.628 5.696 4.977C5.696 4.977 6.704 4.655 8.997 6.207C9.954 5.941 10.98 5.808 12 5.803C13.02 5.808 14.047 5.941 15.006 6.207C17.297 4.655 18.303 4.977 18.303 4.977C18.956 6.629 18.545 7.851 18.421 8.153C19.191 8.993 19.656 10.064 19.656 11.374C19.656 15.983 16.849 16.998 14.177 17.295C14.607 17.667 15 18.397 15 19.517V22.81C15 23.129 15.192 23.504 15.801 23.386C20.566 21.797 24 17.3 24 12C24 5.373 18.627 0 12 0Z" fill="currentColor"></path>
                     </svg>
                 </a>
             </div>
 
             <!-- 标签切换栏 -->
-            <nav class="tabs-navigation" aria-label="功能板块">
-                <button class="tab-scroll-btn" id="tabs-previous" type="button" aria-label="向左滑动板块" disabled>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+            <nav class="tabs-navigation" aria-label="功能板块" data-i18n-aria-label="ui_features">
+                <button class="tab-scroll-btn" id="tabs-previous" type="button" aria-label="向左滑动板块" disabled="" data-i18n-aria-label="ui_scroll_tabs_left">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"></path></svg>
                 </button>
-                <div class="tabs-container" role="tablist" aria-label="选择功能板块">
+                <div class="tabs-container" role="tablist" aria-label="选择功能板块" data-i18n-aria-label="ui_select_a_feature">
                     <button class="tab-btn active" id="tab-antidebug" role="tab" aria-selected="true" aria-controls="panel-antidebug" data-tab="antidebug">AntiDebug</button>
                     <button class="tab-btn" id="tab-hook" role="tab" aria-selected="false" aria-controls="panel-hook" tabindex="-1" data-tab="hook">Hook</button>
                     <button class="tab-btn" id="tab-vue" role="tab" aria-selected="false" aria-controls="panel-vue" tabindex="-1" data-tab="vue">Vue/React</button>
                     <button class="tab-btn" id="tab-scripts" role="tab" aria-selected="false" aria-controls="panel-scripts" tabindex="-1" data-tab="scripts">Scripts</button>
                     <button class="tab-btn" id="tab-mcp" role="tab" aria-selected="false" aria-controls="panel-mcp" tabindex="-1" data-tab="mcp">MCP</button>
                 </div>
-                <button class="tab-scroll-btn" id="tabs-next" type="button" aria-label="向右滑动板块">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>
+                <button class="tab-scroll-btn" id="tabs-next" type="button" aria-label="向右滑动板块" data-i18n-aria-label="ui_scroll_tabs_right">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"></path></svg>
                 </button>
             </nav>
 
@@ -95,24 +81,16 @@
             <div class="search-container">
                 <!-- Hook板块必看说明 -->
                 <div class="hook-notice-container" style="display: none;">
-                    <span class="hook-notice-text">必看说明</span>
-                    <div class="hook-notice-tooltip">
-                        1. 本板块分三类脚本：固定变量脚本、非固定变量脚本、非固定变量+可检索关键字脚本。<br><br>
-                        2. 固定变量脚本默认提供一个固定值，修改固定值后需按Enter保存。<br><br>
-                        3.
-                        非固定变量+可检索关键字脚本开启后，未开启检索关键字功能时会输出所有Hook到的内容；如果开启检索关键字并且设置了关键字仅会Hook输出关键字内容；若开启检索关键字功能但并没有设置关键字时将会输出所有Hook到的内容。<br><br>
-                        4. 可检索关键字的功能采取的是模糊检索，也就是说只要传进的内容中包含了检索的关键字就能被hook到。<br><br>
-                        5. 开启debugger或stack功能后，如果hook到内容将会触发debugger或打印堆栈信息。<br><br>
-                        6. 如果下方没有要用的hook脚本可以提issues，也可以联系我(公众号：Spade sec)，我会考虑是否纳入到后续更新进程中。
-                    </div>
+                    <span class="hook-notice-text" data-i18n="ui_hook_guide">必看说明</span>
+                    <div class="hook-notice-tooltip" data-i18n="ui_1_hooks_can_replace_a_return_value_log_calls_or_filter_logged_cal">1. 本板块分三类脚本：固定变量脚本、非固定变量脚本、非固定变量+可检索关键字脚本。 2. 固定变量脚本默认提供一个固定值，修改固定值后需按Enter保存。 3. 非固定变量+可检索关键字脚本开启后，未开启检索关键字功能时会输出所有Hook到的内容；如果开启检索关键字并且设置了关键字仅会Hook输出关键字内容；若开启检索关键字功能但并没有设置关键字时将会输出所有Hook到的内容。 4. 可检索关键字的功能采取的是模糊检索，也就是说只要传进的内容中包含了检索的关键字就能被hook到。 5. 开启debugger或stack功能后，如果hook到内容将会触发debugger或打印堆栈信息。 6. 如果下方没有要用的hook脚本可以提issues，也可以联系我(公众号：Spade sec)，我会考虑是否纳入到后续更新进程中。</div>
                     <!-- Hook板块筛选按钮 -->
                     <div class="hook-filter-buttons">
-                        <button class="hook-filter-btn" id="hook-filter-enabled" data-filter="enabled">已开启</button>
-                        <button class="hook-filter-btn" id="hook-filter-disabled" data-filter="disabled">未开启</button>
+                        <button class="hook-filter-btn" id="hook-filter-enabled" data-filter="enabled" data-i18n="ui_enabled_2">已开启</button>
+                        <button class="hook-filter-btn" id="hook-filter-disabled" data-filter="disabled" data-i18n="ui_disabled_2">未开启</button>
                     </div>
                 </div>
-                <input type="text" id="search-input" placeholder="Search scripts...">
-                <button id="search-btn">
+                <input type="text" id="search-input" placeholder="搜索脚本…" data-i18n-placeholder="ui_search_scripts">
+                <button id="search-btn" data-i18n-aria-label="ui_search">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -121,10 +99,10 @@
             </div>
         </header>
 
-        <aside class="state-notice" id="state-notice" role="status" aria-live="polite" hidden>
+        <aside class="state-notice" id="state-notice" role="status" aria-live="polite" hidden="">
             <p id="state-notice-text"></p>
-            <details id="state-notice-details" hidden>
-                <summary>查看错误</summary>
+            <details id="state-notice-details" hidden="">
+                <summary data-i18n="ui_view_errors">查看错误</summary>
                 <p id="state-notice-errors"></p>
             </details>
         </aside>
@@ -165,7 +143,7 @@
                     <div class="vue-version-display" style="display: none;">
                         <div class="routes-info"></div>
                         <div>
-                            <span class="version-label">Vue 版本：</span>
+                            <span class="version-label" data-i18n="ui_vue_version">Vue 版本：</span>
                             <span class="version-value"></span>
                         </div>
                     </div>
@@ -173,25 +151,23 @@
                     <!-- 新增：Base路径输入（仅检测到base时显示） -->
                     <div class="route-base-input-container" style="display: none;">
                         <div class="detected-base-info">
-                            <span class="detected-base-label">检测到基础路径：</span>
+                            <span class="detected-base-label" data-i18n="ui_detected_base">检测到基础路径：</span>
                             <span class="detected-base-value"></span>
-                            <button class="apply-detected-base-btn">应用</button>
+                            <button class="apply-detected-base-btn" data-i18n="ui_apply">应用</button>
                         </div>
                         <div class="custom-base-input-wrapper">
-                            <label class="custom-base-label">自定义基础路径：</label>
-                            <input type="text" id="custom-base-input" class="custom-base-input"
-                                placeholder="留空显示标准路径，如：/admin" />
-                            <button class="clear-base-btn">清空</button>
+                            <label class="custom-base-label" data-i18n="ui_custom_base">自定义基础路径：</label>
+                            <input type="text" id="custom-base-input" class="custom-base-input" placeholder="留空显示标准路径，如：/admin" data-i18n-placeholder="ui_leave_blank_for_standard_paths_e_g_admin">
+                            <button class="clear-base-btn" data-i18n="ui_clear">清空</button>
                         </div>
-                        <div class="base-hint">💡 输入后实时更新路由列表</div>
+                        <div class="base-hint" data-i18n="ui_route_urls_update_as_you_type">💡 输入后实时更新路由列表</div>
                     </div>
 
                     <!-- 新增：Vue路由搜索框 -->
                     <div class="vue-route-search-container" style="display: none;">
-                        <input type="text" id="vue-route-search-input" placeholder="Search routes...">
-                        <button id="vue-route-search-btn">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
+                        <input type="text" id="vue-route-search-input" placeholder="搜索路由…" data-i18n-placeholder="ui_search_routes">
+                        <button id="vue-route-search-btn" data-i18n-aria-label="ui_search">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="11" cy="11" r="8"></circle>
                                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                             </svg>
@@ -204,8 +180,8 @@
 
                     <!-- 新增：批量复制按钮 -->
                     <div class="routes-actions-footer" style="display: none;">
-                        <button class="footer-btn copy-all-paths-btn">复制所有路径</button>
-                        <button class="footer-btn copy-all-urls-btn">复制所有URL</button>
+                        <button class="footer-btn copy-all-paths-btn" data-i18n="ui_copy_all_paths">复制所有路径</button>
+                        <button class="footer-btn copy-all-urls-btn" data-i18n="ui_copy_all_urls">复制所有URL</button>
                     </div>
                 </div>
             </div>
@@ -233,25 +209,23 @@
                     <!-- 检测到基础路径时显示 -->
                     <div class="react-route-base-input-container" style="display: none;">
                         <div class="detected-base-info">
-                            <span class="detected-base-label">检测到基础路径：</span>
+                            <span class="detected-base-label" data-i18n="ui_detected_base">检测到基础路径：</span>
                             <span class="react-detected-base-value"></span>
-                            <button class="react-apply-detected-base-btn">应用</button>
+                            <button class="react-apply-detected-base-btn" data-i18n="ui_apply">应用</button>
                         </div>
                         <div class="custom-base-input-wrapper">
-                            <label class="custom-base-label">自定义基础路径：</label>
-                            <input type="text" id="react-custom-base-input" class="custom-base-input"
-                                placeholder="留空显示标准路径，如：/admin" />
-                            <button class="react-clear-base-btn">清空</button>
+                            <label class="custom-base-label" data-i18n="ui_custom_base">自定义基础路径：</label>
+                            <input type="text" id="react-custom-base-input" class="custom-base-input" placeholder="留空显示标准路径，如：/admin" data-i18n-placeholder="ui_leave_blank_for_standard_paths_e_g_admin">
+                            <button class="react-clear-base-btn" data-i18n="ui_clear">清空</button>
                         </div>
-                        <div class="base-hint">💡 输入后实时更新路由列表</div>
+                        <div class="base-hint" data-i18n="ui_route_urls_update_as_you_type">💡 输入后实时更新路由列表</div>
                     </div>
 
                     <!-- 路由搜索框 -->
                     <div class="react-route-search-container" style="display: none;">
-                        <input type="text" id="react-route-search-input" placeholder="Search routes...">
-                        <button id="react-route-search-btn">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
+                        <input type="text" id="react-route-search-input" placeholder="搜索路由…" data-i18n-placeholder="ui_search_routes">
+                        <button id="react-route-search-btn" data-i18n-aria-label="ui_search">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="11" cy="11" r="8"></circle>
                                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                             </svg>
@@ -263,8 +237,8 @@
 
                     <!-- 批量复制按钮 -->
                     <div class="react-routes-actions-footer" style="display: none;">
-                        <button class="footer-btn react-copy-all-paths-btn">复制所有路径</button>
-                        <button class="footer-btn react-copy-all-urls-btn">复制所有URL</button>
+                        <button class="footer-btn react-copy-all-paths-btn" data-i18n="ui_copy_all_paths">复制所有路径</button>
+                        <button class="footer-btn react-copy-all-urls-btn" data-i18n="ui_copy_all_urls">复制所有URL</button>
                     </div>
                 </div>
             </div>
@@ -272,76 +246,73 @@
 
         <section class="library-content" id="panel-scripts" role="tabpanel" aria-labelledby="tab-scripts" style="display: none;">
             <div class="library-heading">
-                <h2>脚本库 <span id="library-summary"></span></h2>
-                <button type="button" id="library-refresh">刷新</button>
+                <h2><span data-i18n="ui_script_library">脚本库</span><span id="library-summary"></span></h2>
+                <button type="button" id="library-refresh" data-i18n="ui_refresh">刷新</button>
             </div>
-            <p class="library-description">脚本新增由 Agent 管理，开关作用于该脚本的所有匹配网站，下次页面加载时生效。停用后，已打开页面需刷新才能清除原脚本效果。</p>
-            <p id="library-feedback" role="status" aria-live="polite" hidden></p>
-            <p id="library-notice" class="library-notice" hidden></p>
-            <div id="library-empty" class="library-empty" hidden>
-                <h3>暂无脚本</h3>
-                <p>让 Agent 将脚本保存到脚本库后，会在这里显示。</p>
+            <p class="library-description" data-i18n="ui_agents_add_scripts_to_the_library_each_toggle_applies_to_all_webs">脚本新增由 Agent 管理，开关作用于该脚本的所有匹配网站，下次页面加载时生效。停用后，已打开页面需刷新才能清除原脚本效果。</p>
+            <p id="library-feedback" role="status" aria-live="polite" hidden=""></p>
+            <p id="library-notice" class="library-notice" hidden=""></p>
+            <div id="library-empty" class="library-empty" hidden="">
+                <h3 data-i18n="ui_no_saved_scripts">暂无脚本</h3>
+                <p data-i18n="ui_scripts_saved_to_the_library_by_your_agent_appear_here">让 Agent 将脚本保存到脚本库后，会在这里显示。</p>
             </div>
-            <ul id="library-list" aria-label="已保存的脚本"></ul>
+            <ul id="library-list" aria-label="已保存的脚本" data-i18n-aria-label="ui_saved_scripts"></ul>
         </section>
 
         <section class="mcp-content" id="panel-mcp" role="tabpanel" aria-labelledby="tab-mcp" style="display: none;">
         <div class="mcp-heading">
-            <h2>连接你的 Agent</h2>
+            <h2 data-i18n="ui_connect_your_agent">连接你的 Agent</h2>
             <div class="mcp-heading-actions">
                 <a id="mcp-download" class="mcp-download-link" target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1" aria-describedby="mcp-download-version">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5"></path>
-                    </svg>
-                    下载 MCP + Skills
-                </a>
-                <button type="button" id="mcp-prompts-open" aria-haspopup="dialog" aria-controls="mcp-prompts-dialog">提示词</button>
+                    </svg><span data-i18n="ui_get_mcp_skills">下载 MCP + Skills</span></a>
+                <button type="button" id="mcp-prompts-open" aria-haspopup="dialog" aria-controls="mcp-prompts-dialog" data-i18n="ui_prompts">提示词</button>
             </div>
         </div>
-        <p id="mcp-download-feedback" role="status" hidden></p>
+        <p id="mcp-download-feedback" role="status" hidden=""></p>
         <section class="status-box" aria-live="polite">
             <span id="status-dot" class="dot"></span><strong id="status">尚未启用</strong>
             <p id="status-detail">先启动本地 MCP，再填写配对信息并启用连接。</p>
         </section>
         <form id="connection-form">
-            <label for="url">本地连接地址</label>
-            <input id="url" type="url" required value="ws://127.0.0.1:19876/extension" spellcheck="false">
-            <label for="token">配对密钥</label>
-            <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 MCP 设置命令显示的配对密钥">
-            <p class="field-hint">密钥仅保存在扩展中，不会写入网页。</p>
-            <button type="submit" id="save" disabled>启用 MCP 并允许 Agent 控制浏览器</button>
-            <div class="connection-actions" id="connection-actions" hidden>
-                <button type="button" id="stop-mcp" hidden>停止 MCP</button>
+            <label for="url" data-i18n="ui_local_connection_address">本地连接地址</label>
+            <input id="url" type="url" required="" value="ws://127.0.0.1:19876/extension" spellcheck="false">
+            <label for="token" data-i18n="ui_pairing_key">配对密钥</label>
+            <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 MCP 设置命令显示的配对密钥" data-i18n-placeholder="ui_paste_the_pairing_key_from_mcp_setup">
+            <p class="field-hint" data-i18n="ui_the_key_is_stored_only_in_the_extension_and_is_never_written_to_w">密钥仅保存在扩展中，不会写入网页。</p>
+            <button type="submit" id="save" disabled="">启用 MCP 并允许 Agent 控制浏览器</button>
+            <div class="connection-actions" id="connection-actions" hidden="">
+                <button type="button" id="stop-mcp" hidden="" data-i18n="ui_stop_mcp">停止 MCP</button>
             </div>
             <p id="browser-permission-status" role="status">正在检查控制状态…</p>
             <p id="feedback" role="status"></p>
         </form>
         <details class="instructions">
-            <summary>首次连接说明</summary>
+            <summary data-i18n="ui_first_time_setup">首次连接说明</summary>
             <p id="mcp-download-version">配套包包含安装说明。</p>
             <ol>
-                <li>点击“下载 MCP + Skills”，在打开的 GitHub 发布页的 Assets 中下载 <code>AntiDebug_Breaker-Agent-*.zip</code>。解压后按包内安装说明操作：在 <code>mcp</code> 目录执行 <code>npm ci</code> 和 <code>npm run setup</code>，再将 Skills 安装到客户端。</li>
-                <li>将本项目 MCP 加入你的 Agent 客户端配置，由客户端启动服务；也可先执行 <code>npm start</code> 检查扩展连接。</li>
-                <li>粘贴配对信息，点击“启用 MCP 并允许 Agent 控制浏览器”，一次开启连接和控制。设置会保存，正常重启后无需再次启用。</li>
-                <li>Agent 通过扩展连接标签页，可使用脚本开关、Hook 参数、路由、断点、网络和页面交互，无需开启 Chrome 的远程调试连接。</li>
-                <li>启用后，主按钮变为“保存连接设置”，可更新地址和密钥。“停止 MCP”会断开连接和调试会话，并保留已保存的配对信息。</li>
-                <li>通过 Chrome 调试提示条取消后，MCP 连接保持启用；需点击“重新启用浏览器控制”才能恢复控制，点击时也会保存当前配对信息。</li>
-                <li>Agent 可管理脚本库，用户也可在 Scripts 板块编辑名称、匹配网站和源码，以及启停或删除已有脚本。首次使用请在 Chrome 扩展详情页开启“允许用户脚本”（Chrome 120–137 使用“开发者模式”）。已启用的脚本会在匹配网站加载时自动注入；停止 MCP 不会停用这些脚本。可关闭“允许用户脚本”以停止后续注入，再刷新页面清除旧脚本影响。</li>
-                <li>旧版设置会保留，已停用的控制不会因升级或重新打开面板而开启。若 Chrome 在更新后停用扩展，请先到扩展管理页确认新增权限。</li>
+                <li data-i18n="ui_select_get_mcp_skills_and_download_antidebug_breaker_agent_zip_fr">点击“下载 MCP + Skills”，在打开的 GitHub 发布页的 Assets 中下载 AntiDebug_Breaker-Agent-*.zip。解压后按包内安装说明操作：在 mcp 目录执行 npm ci 和 npm run setup，再将 Skills 安装到客户端。</li>
+                <li data-i18n="ui_add_this_mcp_server_to_your_agent_client_s_configuration_and_let_">将本项目 MCP 加入你的 Agent 客户端配置，由客户端启动服务；也可先执行 npm start 检查扩展连接。</li>
+                <li data-i18n="ui_paste_the_pairing_details_and_select_enable_mcp_and_allow_browser">粘贴配对信息，点击“启用 MCP 并允许 Agent 控制浏览器”，一次开启连接和控制。设置会保存，正常重启后无需再次启用。</li>
+                <li data-i18n="ui_your_agent_connects_to_tabs_through_the_extension_to_manage_scrip">Agent 通过扩展连接标签页，可使用脚本开关、Hook 参数、路由、断点、网络和页面交互，无需开启 Chrome 的远程调试连接。</li>
+                <li data-i18n="ui_once_enabled_save_connection_settings_updates_the_address_and_key">启用后，主按钮变为“保存连接设置”，可更新地址和密钥。“停止 MCP”会断开连接和调试会话，并保留已保存的配对信息。</li>
+                <li data-i18n="ui_canceling_through_chrome_s_debugging_banner_leaves_mcp_enabled_se">通过 Chrome 调试提示条取消后，MCP 连接保持启用；需点击“重新启用浏览器控制”才能恢复控制，点击时也会保存当前配对信息。</li>
+                <li data-i18n="ui_agents_manage_the_library_you_can_edit_names_match_patterns_and_s">Agent 可管理脚本库，用户也可在 Scripts 板块编辑名称、匹配网站和源码，以及启停或删除已有脚本。首次使用请在 Chrome 扩展详情页开启“允许用户脚本”（Chrome 120–137 使用“开发者模式”）。已启用的脚本会在匹配网站加载时自动注入；停止 MCP 不会停用这些脚本。可关闭“允许用户脚本”以停止后续注入，再刷新页面清除旧脚本影响。</li>
+                <li data-i18n="ui_existing_settings_are_preserved_updates_and_reopening_the_popup_d">旧版设置会保留，已停用的控制不会因升级或重新打开面板而开启。若 Chrome 在更新后停用扩展，请先到扩展管理页确认新增权限。</li>
             </ol>
-            <p>调试数据会交给你选择的 Agent 客户端。Chrome 的调试提示条无需点击允许；停止 MCP 不会撤销扩展已声明的 Chrome 调试权限。</p>
+            <p data-i18n="ui_debugging_data_is_shared_with_your_chosen_agent_client_chrome_s_d">调试数据会交给你选择的 Agent 客户端。Chrome 的调试提示条无需点击允许；停止 MCP 不会撤销扩展已声明的 Chrome 调试权限。</p>
         </details>
     
         </section>
 
         <div class="no-results">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <line x1="12" y1="8" x2="12" y2="12"></line>
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
             </svg>
-            <p>No scripts found matching your search</p>
+            <p data-i18n="ui_no_scripts_match_your_search">没有符合搜索条件的脚本</p>
         </div>
 
         <footer>
@@ -353,61 +324,67 @@
     <dialog id="library-editor-dialog" class="library-editor-dialog" aria-labelledby="library-editor-title" aria-describedby="library-editor-help">
         <div class="library-editor-heading">
             <h2 id="library-editor-title">查看 / 编辑脚本</h2>
-            <button type="button" id="library-editor-close">关闭</button>
+            <button type="button" id="library-editor-close" data-i18n="ui_close">关闭</button>
         </div>
         <p id="library-editor-meta"></p>
-        <p id="library-editor-help">在此查看、复制或修改源码。保存后，已启用脚本在匹配页面下次加载时生效。</p>
+        <p id="library-editor-help" data-i18n="ui_view_copy_or_edit_the_source_here_after_saving_enabled_scripts_ap">在此查看、复制或修改源码。保存后，已启用脚本在匹配页面下次加载时生效。</p>
         <div class="library-editor-source-heading">
-            <label for="library-editor-code">JavaScript 源码</label>
-            <button type="button" id="library-editor-copy" aria-live="polite" disabled>一键复制</button>
+            <label for="library-editor-code" data-i18n="ui_javascript_source">JavaScript 源码</label>
+            <button type="button" id="library-editor-copy" aria-live="polite" disabled="">一键复制</button>
         </div>
-        <textarea id="library-editor-code" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" maxlength="131072" aria-describedby="library-editor-draft" readonly></textarea>
-        <p id="library-editor-copy-feedback" role="status" aria-live="polite" hidden></p>
+        <textarea id="library-editor-code" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" maxlength="131072" aria-describedby="library-editor-draft" readonly=""></textarea>
+        <p id="library-editor-copy-feedback" role="status" aria-live="polite" hidden=""></p>
         <p id="library-editor-draft">未保存草稿仅在本次浏览器会话中暂存，不会注入网站。</p>
         <p id="library-editor-feedback" role="status" aria-live="polite"></p>
-        <div id="library-editor-discard" hidden>
-            <p>读取已保存版本会放弃当前草稿。</p>
+        <div id="library-editor-discard" hidden="">
+            <p data-i18n="ui_loading_the_saved_version_discards_your_current_draft">读取已保存版本会放弃当前草稿。</p>
             <div class="library-editor-actions">
-                <button type="button" id="library-editor-discard-cancel">继续编辑</button>
-                <button type="button" id="library-editor-discard-confirm">放弃草稿并读取</button>
+                <button type="button" id="library-editor-discard-cancel" data-i18n="ui_keep_editing">继续编辑</button>
+                <button type="button" id="library-editor-discard-confirm" data-i18n="ui_discard_draft_and_load">放弃草稿并读取</button>
             </div>
         </div>
         <div class="library-editor-actions">
             <button type="button" id="library-editor-reload">读取已保存版本</button>
-            <button type="button" id="library-editor-save" disabled>保存修改</button>
+            <button type="button" id="library-editor-save" disabled="" data-i18n="ui_save_changes">保存修改</button>
         </div>
     </dialog>
 
     <dialog id="mcp-prompts-dialog" class="mcp-prompts-dialog" aria-labelledby="mcp-prompts-title" aria-describedby="mcp-prompts-help">
         <div class="mcp-prompts-heading">
-            <h2 id="mcp-prompts-title">推荐提示词</h2>
-            <button type="button" id="mcp-prompts-close" aria-label="关闭推荐提示词">关闭</button>
+            <h2 id="mcp-prompts-title" data-i18n="ui_suggested_prompts">推荐提示词</h2>
+            <button type="button" id="mcp-prompts-close" aria-label="关闭推荐提示词" data-i18n="ui_close" data-i18n-aria-label="ui_close_suggested_prompts">关闭</button>
         </div>
-        <p id="mcp-prompts-help">替换 {…} 后发给 Agent。需要登录时先在 Chrome 登录；有特定角色、触发步骤或分析范围时一并说明。</p>
-        <div class="mcp-prompt-options" role="group" aria-label="选择任务">
-            <button type="button" data-mcp-prompt="antidebug" aria-pressed="true">反调试</button>
-            <button type="button" data-mcp-prompt="crypto" aria-pressed="false">加密逆向</button>
-            <button type="button" data-mcp-prompt="routes" aria-pressed="false">Vue/React 路由</button>
+        <p id="mcp-prompts-help" data-i18n="ui_replace_the_placeholders_and_send_the_prompt_to_your_agent_sign_i">替换 {…} 后发给 Agent。需要登录时先在 Chrome 登录；有特定角色、触发步骤或分析范围时一并说明。</p>
+        <div class="mcp-prompt-options" role="group" aria-label="选择任务" data-i18n-aria-label="ui_choose_a_task">
+            <button type="button" data-mcp-prompt="antidebug" aria-pressed="true" data-i18n="ui_anti_debugging">反调试</button>
+            <button type="button" data-mcp-prompt="crypto" aria-pressed="false" data-i18n="ui_crypto_analysis">加密逆向</button>
+            <button type="button" data-mcp-prompt="routes" aria-pressed="false" data-i18n="ui_vue_react_routes">Vue/React 路由</button>
         </div>
-        <textarea id="mcp-prompt-text" readonly spellcheck="false" aria-label="推荐提示词正文" aria-describedby="mcp-prompt-note"></textarea>
-        <p id="mcp-prompt-note" hidden></p>
+        <textarea id="mcp-prompt-text" readonly="" spellcheck="false" aria-label="推荐提示词正文" aria-describedby="mcp-prompt-note" data-i18n-aria-label="ui_suggested_prompt_text"></textarea>
+        <p id="mcp-prompt-note" hidden=""></p>
         <div class="mcp-prompt-actions">
             <p id="mcp-prompt-feedback" role="status" aria-live="polite"></p>
-            <button type="button" id="mcp-prompt-copy">复制提示词</button>
+            <button type="button" id="mcp-prompt-copy" data-i18n="ui_copy_prompt">复制提示词</button>
         </div>
     </dialog>
 
     <!-- Toast提示 -->
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true">
-        <div class="toast-message">已保存</div>
+        <div class="toast-message" data-i18n="ui_saved">已保存</div>
     </div>
 
+    <script src="../i18n/core.js"></script>
+    <script src="../i18n/ui.js"></script>
+    <script src="../i18n/catalog.js"></script>
+    <script src="../i18n/errors.js"></script>
+    <script src="i18n.js"></script>
     <script src="popup.js"></script>
     <script src="library-editor.js"></script>
     <script src="library-cards.js"></script>
     <script src="mcp.js"></script>
     <script src="mcp-prompts.js"></script>
     <script src="mcp-download.js"></script>
-</body>
 
-</html>
+
+
+</body></html>

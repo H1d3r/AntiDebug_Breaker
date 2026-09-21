@@ -9,9 +9,11 @@ import { sourceFile, sha256, writeArchive, formatArchiveResult } from './package
 export const agentFiles = Object.freeze([
   'agent-release.json',
   'docs/agent-install.md',
+  'docs/agent-install.en.md',
   'mcp/package.json',
   'mcp/package-lock.json',
   'mcp/README.md',
+  'mcp/README.en.md',
   'mcp/src/index.js',
   'mcp/src/config.js',
   'mcp/src/bridge.js',
@@ -73,8 +75,19 @@ export async function prepareAgentPackage(directory) {
 
   const prefix = release.assetName.slice(0, -4);
   const files = new Map();
-  for (const [source, data] of contents) files.set(source === 'docs/agent-install.md' ? '安装说明.md' : source, data);
-  files.set('README.md', Buffer.from(`# AntiDebug Breaker MCP + Skills\n\n请先阅读 [安装说明](安装说明.md)，再按 [MCP 说明](mcp/README.md) 配置 Agent。\n\n配套扩展版本：${release.extensionVersion}；MCP 版本：${release.mcpVersion}。本包不包含 Chrome 扩展、Node.js 或已安装的依赖。\n\n[项目源码](https://github.com/${release.repository}) · [对应版本](https://github.com/${release.repository}/releases/tag/${release.tag})\n`, 'utf8'));
+  for (const [source, data] of contents) {
+    if (source === 'docs/agent-install.md' || source === 'docs/agent-install.en.md') {
+      const target = source.endsWith('.en.md') ? 'INSTALL.en.md' : '安装说明.md';
+      const text = data.toString('utf8')
+        .replaceAll('(agent-install.md)', '(安装说明.md)')
+        .replaceAll('(agent-install.en.md)', '(INSTALL.en.md)')
+        .replaceAll('(../mcp/README.en.md)', '(mcp/README.en.md)');
+      files.set(target, Buffer.from(text, 'utf8'));
+    } else if (source === 'mcp/README.en.md') {
+      files.set(source, Buffer.from(data.toString('utf8').replaceAll('(../docs/agent-install.en.md)', '(../INSTALL.en.md)'), 'utf8'));
+    } else files.set(source, data);
+  }
+  files.set('README.md', Buffer.from(`# AntiDebug Breaker MCP + Skills\n\n[简体中文安装说明](安装说明.md) · [English installation guide](INSTALL.en.md)\n\n请先阅读 [安装说明](安装说明.md)，再按 [MCP 说明](mcp/README.md) 配置 Agent。\n\nStart with the [English installation guide](INSTALL.en.md), then use the [MCP reference](mcp/README.en.md) to configure your Agent.\n\n配套扩展版本：${release.extensionVersion}；MCP 版本：${release.mcpVersion}。本包不包含 Chrome 扩展、Node.js 或已安装的依赖。\n\nFor extension ${release.extensionVersion}, with MCP ${release.mcpVersion}. This bundle does not include the Chrome extension, Node.js, or installed dependencies. Install the complete skills directory as described in the installation guide.\n\n[项目源码 / Source](https://github.com/${release.repository}) · [对应版本 / Release](https://github.com/${release.repository}/releases/tag/${release.tag})\n`, 'utf8'));
   const inventory = Object.fromEntries([...files].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([name, data]) => [name, { bytes: data.length, sha256: sha256(data) }]));
   files.set('bundle-manifest.json', Buffer.from(`${JSON.stringify({ ...release, files: inventory }, null, 2)}\n`, 'utf8'));
   return {

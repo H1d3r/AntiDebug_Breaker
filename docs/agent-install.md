@@ -1,15 +1,17 @@
 # AntiDebug Breaker MCP + Skills 安装说明
 
-此配套包用于扩展 **3.1.1**，包含本地 MCP **0.2.0** 服务和 `Antidebug_Breaker_skills`。先安装或更新到对应版本的 Chrome 扩展，再按以下步骤接入 Agent。商店用户继续使用商店安装的扩展，无需从配套包再安装扩展。
+[简体中文](agent-install.md) · [English](agent-install.en.md)
+
+此配套包用于扩展 **3.1.2**，包含本地 MCP **0.2.0** 服务和 `Antidebug_Breaker_skills`。先安装或更新到对应版本的 Chrome 扩展，再按以下步骤接入 Agent。商店用户继续使用商店安装的扩展，无需从配套包再安装扩展。
 
 ## 1. 下载并解压
 
-在扩展的 **MCP** 页面点击 **“下载 MCP + Skills”**，在新标签页打开 [本扩展版本对应的 GitHub Release](https://github.com/0xsdeo/AntiDebug_Breaker/releases/tag/v3.1.1)。从页面的 **Assets** 下载 `AntiDebug_Breaker-Agent-3.1.1.zip`，解压到准备长期保留的目录。按钮不会自动选择其他版本。
+在扩展的 **MCP** 页面点击 **“下载 MCP + Skills”**，在新标签页打开 [本扩展版本对应的 GitHub Release](https://github.com/0xsdeo/AntiDebug_Breaker/releases/tag/v3.1.2)。从页面的 **Assets** 下载 `AntiDebug_Breaker-Agent-3.1.2.zip`，解压到准备长期保留的目录。按钮不会自动选择其他版本。
 
 包内目录如下：
 
 ```text
-AntiDebug_Breaker-Agent-3.1.1/
+AntiDebug_Breaker-Agent-3.1.2/
 ├── 安装说明.md
 ├── bundle-manifest.json
 ├── mcp/
@@ -48,7 +50,7 @@ npm run setup
     "antidebug-breaker": {
       "command": "node",
       "args": [
-        "C:/Tools/AntiDebug_Breaker-Agent-3.1.1/mcp/src/index.js"
+        "C:/Tools/AntiDebug_Breaker-Agent-3.1.2/mcp/src/index.js"
       ]
     }
   }
@@ -89,7 +91,7 @@ npm run setup
 
 ## 更新与排查
 
-- **更新配套包**：选择与扩展对应的版本，停止客户端中的旧 MCP 服务，替换本地配套文件，在新的 `mcp` 目录执行 `npm ci`，再启动服务。解压位置改变时同步修改客户端入口路径；更新已安装的整个技能目录。默认个人配对配置在包外，会继续使用，无需重新生成密钥。本次脚本库与 Cookie 清理能力使用扩展 **3.1.1** 和本地 MCP **0.2.0**；请使用同次发布的配套文件，商店更新扩展不会替你更新本地 MCP。
+- **更新配套包**：选择与扩展对应的版本，停止客户端中的旧 MCP 服务，替换本地配套文件，在新的 `mcp` 目录执行 `npm ci`，再启动服务。解压位置改变时同步修改客户端入口路径；更新已安装的整个技能目录。默认个人配对配置在包外，会继续使用，无需重新生成密钥。本发行版的脚本库与 Cookie 清理能力由扩展 **3.1.2** 和本地 MCP **0.2.0** 配套提供；请使用同次发布的配套文件，商店更新扩展不会替你更新本地 MCP。
 - **手动更新扩展源码**：覆盖文件后，在 `chrome://extensions` 点击扩展的“重新加载”，再刷新已经打开的网站。商店安装的扩展通过原商店条目更新；更新后刷新已有网站以加载新版页面脚本。
 - **扩展一直正在连接**：确认客户端的 MCP 服务已启动，地址和密钥与 `setup` 输出一致。`PORT_IN_USE` 通常表示另一个 MCP 进程或手动启动的服务占用了端口。
 - **脚本库不可用**：检查扩展详情中的“允许用户脚本”开关，以及 `adb_capabilities.extension.scriptLibrary` 返回的原因和指引。没有 `adb_script_library` 工具时更新并重启本地 MCP；旧扩展也需同步更新。扩展更新后会从保存内容恢复库脚本注册，无需重复创建脚本。

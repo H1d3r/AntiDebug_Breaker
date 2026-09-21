@@ -14,6 +14,17 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_sessionStorage_getItem")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
     const SCRIPT_ID = 'hook_sessionStorage_getItem';
 
     function clear_Antidebug(id) {
@@ -35,7 +46,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_sessionStorage_getItem")) {
 
         sessionStorage.getItem = function () {
             if (flag === "0") {
-                console.log("获取了sessionStorage\n键：" + arguments[0]);
+                console.log(adbLogText("log_session_storage_get", "Read sessionStorage\nKey: ") + arguments[0]);
                 window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                 if (is_debugger === "1") {
                     debugger;
@@ -45,7 +56,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_sessionStorage_getItem")) {
                 }
             } else {
                 if (arguments[0] && param.some(item => arguments[0].includes(item))) {
-                    console.log(`捕获到获取了sessionStorage键 ---> ${arguments[0]}`);
+                    console.log(adbLogText("log_session_storage_get_matched", "Matched sessionStorage read ---> {0}", [`${arguments[0]}`]));
                     window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                     if (is_debugger === "1") {
                         debugger;

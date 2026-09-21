@@ -25,14 +25,14 @@
 
     function dirty() { return current?.loaded && code.value !== current.baseCode; }
     function message(text, error = false) {
-        feedback.textContent = text;
+        ADB_UI.text(feedback, text);
         feedback.classList.toggle('library-editor-error', error);
     }
     function resetCopyStatus() {
         copySequence++;
         clearTimeout(copyResetTimer);
         copyResetTimer = undefined;
-        copy.textContent = '一键复制';
+        ADB_UI.bind(copy, () => ADB_I18N.t("ui_copy_code"), "textContent");
         copyFeedback.hidden = true;
     }
     function controls() {
@@ -50,7 +50,7 @@
     // registered library; ordered writes prevent an older input from winning.
     function writeDraft(state, draft) {
         const sequence = ++draftSequence;
-        if (current === state) draftHint.textContent = draft ? '正在暂存草稿…' : '正在更新草稿状态…';
+        if (current === state) ADB_UI.bind(draftHint, () => draft ? ADB_I18N.t("ui_keeping_draft") : ADB_I18N.t("ui_updating_draft_status"), "textContent");
         draftWrites = draftWrites.then(async () => {
             const key = draftPrefix + state.id;
             // Preserve pending metadata from earlier combined-editor drafts
@@ -60,11 +60,11 @@
             else await chrome.storage.session.remove(key);
             state.draftReadFailed = false;
             if (current === state && sequence === draftSequence) {
-                draftHint.textContent = draft ? '草稿已暂存，关闭面板后可继续编辑；点击保存才会更新脚本。'
-                    : '未保存草稿仅在本次浏览器会话中暂存，不会注入网站。';
+                ADB_UI.bind(draftHint, () => draft ? ADB_I18N.t("ui_draft_retained_for_this_browser_session_you_can_reopen_the_popup_")
+                    : ADB_I18N.t("ui_unsaved_drafts_are_kept_only_for_this_browser_session_and_are_nev"), "textContent");
             }
         }).catch(() => {
-            if (current === state && sequence === draftSequence) draftHint.textContent = '草稿暂存失败，请先保存或复制源码后再关闭面板。';
+            if (current === state && sequence === draftSequence) ADB_UI.bind(draftHint, () => ADB_I18N.t("ui_could_not_keep_the_draft_save_or_copy_the_code_before_closing_the"), "textContent");
         });
         return draftWrites;
     }
@@ -80,7 +80,7 @@
         state.busy = true;
         resetCopyStatus();
         controls();
-        message('正在读取脚本…');
+        message(ADB_I18N.t("ui_loading_script"));
         try {
             await draftWrites;
             const result = await state.command('library.get', { id: state.id });
@@ -88,7 +88,7 @@
             if (typeof result?.script?.code !== 'string' || typeof result.script.name !== 'string' ||
                 !Array.isArray(result.script.matches) || !result.script.matches.every(item => typeof item === 'string') ||
                 !Number.isSafeInteger(result.revision)) {
-                throw new Error('后台返回的脚本不完整，请重新加载扩展后重试。');
+                throw new Error(ADB_I18N.t("ui_the_background_returned_incomplete_script_data_reload_the_extensi"));
             }
             let draft;
             if (restoreDraft) {
@@ -97,7 +97,7 @@
                     state.draftReadFailed = false;
                 } catch (_) {
                     state.draftReadFailed = true;
-                    draftHint.textContent = '无法读取暂存草稿，以下显示已保存源码；关闭不会删除原草稿。';
+                    ADB_UI.bind(draftHint, () => ADB_I18N.t("ui_could_not_read_the_draft_saved_code_is_shown_below_closing_will_k"), "textContent");
                 }
                 if (current !== state) return;
             }
@@ -105,30 +105,30 @@
             state.baseCode = normalize(script.code);
             state.revision = result.revision;
             state.loaded = true;
-            title.textContent = script.name;
-            meta.textContent = script.enabled ? '已启用' : '已停用';
-            meta.title = script.matches.join('\n');
+            ADB_UI.raw(title, script.name, "textContent");
+            ADB_UI.bind(meta, () => script.enabled ? ADB_I18N.t("ui_enabled") : ADB_I18N.t("ui_disabled"), "textContent");
+            ADB_UI.raw(meta, script.matches.join('\n'), "title");
             code.value = state.baseCode;
             discard.hidden = true;
-            reload.textContent = '读取已保存版本';
+            ADB_UI.bind(reload, () => ADB_I18N.t("ui_load_saved_version"), "textContent");
             if (draft && typeof draft.code === 'string' && typeof draft.baseCode === 'string' &&
                 Number.isSafeInteger(draft.revision) && draft.revision >= 0) {
                 state.baseCode = draft.baseCode;
                 state.revision = draft.revision;
                 code.value = draft.code;
                 const stale = draft.revision !== result.revision;
-                message(stale ? '已恢复未保存草稿，但脚本库已有更新。请复制需保留的修改，再读取最新版本。'
-                    : '已恢复未保存草稿。', stale);
-                if (stale) reload.textContent = '读取最新版本';
-            } else message('已读取脚本，可直接编辑。');
+                message(stale ? ADB_I18N.t("ui_draft_restored_but_the_library_has_changed_copy_any_changes_you_n")
+                    : ADB_I18N.t("ui_unsaved_draft_restored"), stale);
+                if (stale) ADB_UI.bind(reload, () => ADB_I18N.t("ui_load_latest_version"), "textContent");
+            } else message(ADB_I18N.t("ui_script_loaded_and_ready_to_edit"));
             // A failed reload must keep the old draft. Clear only after the new
             // source was successfully fetched and explicitly accepted.
             if (!restoreDraft) await writeDraft(state, null);
         } catch (error) {
             if (current !== state) return;
-            message(error.code === 'SCRIPT_NOT_FOUND' ? '脚本已被删除；现有草稿仍保留，可复制源码。'
-                : error.code === 'METHOD_NOT_FOUND' ? '请重新加载扩展后使用源码编辑功能。'
-                : error.message || '源码读取失败，请重试。', true);
+            message(error.code === 'SCRIPT_NOT_FOUND' ? ADB_I18N.t("ui_the_script_was_deleted_your_draft_is_retained_you_can_copy_the_co")
+                : error.code === 'METHOD_NOT_FOUND' ? ADB_I18N.t("ui_reload_the_extension_to_use_the_source_editor")
+                : ADB_I18N.error(error) || ADB_I18N.t("ui_could_not_load_the_source_please_retry"), true);
         } finally {
             if (current === state) { state.busy = false; controls(); }
         }
@@ -139,41 +139,41 @@
         if (!state || save.disabled) return;
         const source = code.value;
         if (!source.trim() || new TextEncoder().encode(source).length > 131072) {
-            message('源码不能为空，且不得超过 128 KiB UTF-8。', true);
+            message(ADB_I18N.t("ui_source_code_must_not_be_empty_or_exceed_128_kib_in_utf_8"), true);
             return;
         }
         state.busy = state.saving = true;
         controls();
-        message('正在保存…');
+        message(ADB_I18N.t("ui_saving"));
         try {
             const result = await state.command('library.update', { id: state.id, code: source, expectedRevision: state.revision });
             if (current !== state) return;
             if (result?.saved !== true || typeof result.script?.name !== 'string' ||
                 !Array.isArray(result.script.matches) || !Number.isSafeInteger(result.revision)) {
-                throw new Error('无法确认保存结果。草稿已保留，请读取已保存版本核对。');
+                throw new Error(ADB_I18N.t("ui_could_not_confirm_the_save_your_draft_is_retained_load_the_saved_"));
             }
             state.baseCode = source;
             state.revision = result.revision;
-            title.textContent = result.script.name;
-            meta.textContent = result.script.enabled ? '已启用' : '已停用';
-            meta.title = result.script.matches.join('\n');
+            ADB_UI.raw(title, result.script.name, "textContent");
+            ADB_UI.bind(meta, () => result.script.enabled ? ADB_I18N.t("ui_enabled") : ADB_I18N.t("ui_disabled"), "textContent");
+            ADB_UI.raw(meta, result.script.matches.join('\n'), "title");
             await writeDraft(state, null);
             if (result.registrationUpdated) {
-                message(result.script.enabled ? '已保存。请刷新匹配网站以应用新源码。'
-                    : '已保存，脚本保持停用。启用后在匹配页面下次加载时生效。');
+                message(result.script.enabled ? ADB_I18N.t("ui_saved_reload_matching_websites_to_apply_the_new_code")
+                    : ADB_I18N.t("ui_saved_and_still_disabled_after_enabling_it_will_run_on_the_next_m"));
             } else {
-                const reason = result.script.registrationError?.message || result.status?.guidance || '请关闭编辑窗口，查看脚本库中的错误提示。';
-                message(`修改已保存，但注册尚未同步。${reason}`, true);
+                const reason = ADB_I18N.error(result.script.registrationError) || ADB_I18N.translate(result.status?.guidance) || ADB_I18N.t("ui_close_the_editor_and_check_the_error_in_the_script_library");
+                message(ADB_I18N.t("ui_changes_saved_but_registration_is_not_synchronized_0", [reason]), true);
             }
             state.onSaved();
         } catch (error) {
             if (current !== state) return;
             if (error.code === 'REVISION_CONFLICT') {
-                message('脚本库已被更新，本次未覆盖。草稿已保留；请复制需保留的修改，再读取最新版本。', true);
-                reload.textContent = '读取最新版本';
-            } else message(error.code === 'SCRIPT_NOT_FOUND' ? '脚本已被删除，本次未保存。可复制保留源码。'
-                : error.code === 'METHOD_NOT_FOUND' ? '请重新加载扩展后使用源码编辑功能。'
-                : error.message || '保存失败，草稿已保留。', true);
+                message(ADB_I18N.t("ui_the_library_changed_so_nothing_was_overwritten_your_draft_is_reta_2"), true);
+                ADB_UI.bind(reload, () => ADB_I18N.t("ui_load_latest_version"), "textContent");
+            } else message(error.code === 'SCRIPT_NOT_FOUND' ? ADB_I18N.t("ui_the_script_was_deleted_nothing_was_saved_you_can_copy_the_code_to")
+                : error.code === 'METHOD_NOT_FOUND' ? ADB_I18N.t("ui_reload_the_extension_to_use_the_source_editor")
+                : ADB_I18N.error(error) || ADB_I18N.t("ui_save_failed_your_draft_is_retained"), true);
         } finally {
             if (current === state) { state.busy = state.saving = false; controls(); }
         }
@@ -190,10 +190,10 @@
         try {
             await navigator.clipboard.writeText(source);
             if (current === state && sequence === copySequence && code.value === source && !state.busy) {
-                copy.textContent = '√ 已复制';
+                ADB_UI.bind(copy, () => ADB_I18N.t("ui_copied"), "textContent");
                 copyResetTimer = setTimeout(() => {
                     if (current === state && sequence === copySequence) {
-                        copy.textContent = '一键复制';
+                        ADB_UI.bind(copy, () => ADB_I18N.t("ui_copy_code"), "textContent");
                         copyResetTimer = undefined;
                     }
                 }, 2000);
@@ -202,7 +202,7 @@
             if (current === state && sequence === copySequence && code.value === source && !state.busy) {
                 code.focus();
                 code.select();
-                copyFeedback.textContent = '复制失败，已选中源码，请手动复制。';
+                ADB_UI.bind(copyFeedback, () => ADB_I18N.t("ui_copy_failed_the_code_is_selected_please_copy_it_manually"), "textContent");
                 copyFeedback.hidden = false;
             }
         } finally {
@@ -212,7 +212,7 @@
     const onInput = () => {
         resetCopyStatus();
         discard.hidden = true;
-        message(dirty() ? '有未保存的修改。' : '脚本未修改。');
+        message(dirty() ? ADB_I18N.t("ui_you_have_unsaved_changes") : ADB_I18N.t("ui_no_changes_to_the_script"));
         controls();
         rememberDraft();
     };
@@ -243,12 +243,12 @@
         open(id, command, onSaved) {
             if (dialog.open) return;
             current = { id, command, onSaved, loaded: false, busy: false };
-            title.textContent = '查看 / 编辑脚本';
-            meta.textContent = '';
-            meta.title = '';
+            ADB_UI.bind(title, () => ADB_I18N.t("ui_view_edit_script"), "textContent");
+            ADB_UI.raw(meta, '', "textContent");
+            ADB_UI.raw(meta, '', "title");
             code.value = '';
             discard.hidden = true;
-            draftHint.textContent = '未保存草稿仅在本次浏览器会话中暂存，不会注入网站。';
+            ADB_UI.bind(draftHint, () => ADB_I18N.t("ui_unsaved_drafts_are_kept_only_for_this_browser_session_and_are_nev"), "textContent");
             dialog.showModal();
             load(current, true);
         }

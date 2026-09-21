@@ -8,8 +8,10 @@ import { prepareAgentPackage } from './package-agent.mjs';
 
 const fixedFiles = [
   'manifest.json', 'agent-release.json', 'background.js', 'content.js', 'scripts.json',
+  '_locales/en/messages.json', '_locales/zh_CN/messages.json',
+  'i18n/core.js', 'i18n/ui.js', 'i18n/catalog.js', 'i18n/errors.js', 'i18n/logs.js', 'i18n/page-en.js', 'i18n/page-zh_CN.js',
   'extension/policy.js', 'extension/service.js', 'extension/bridge.js', 'extension/debugger.js', 'extension/user-scripts.js',
-  'popup/popup.html', 'popup/popup.js', 'popup/popup.css', 'popup/library-editor.js', 'popup/library-cards.js',
+  'popup/popup.html', 'popup/popup.js', 'popup/popup.css', 'popup/i18n.js', 'popup/library-editor.js', 'popup/library-cards.js',
   'popup/mcp.js', 'popup/mcp.css', 'popup/mcp-prompts.js', 'popup/mcp-download.js',
   'icons/icon16.png', 'icons/icon32.png', 'icons/icon48.png', 'icons/icon128.png',
   'scripts/adb_runtime.js', 'scripts/hook_log v0.1.js', 'scripts/hook_log v0.2.js',
@@ -41,6 +43,7 @@ export async function prepareExtensionPackage(directory) {
     else for (const file of Object.values(value || {})) assertIncluded(file, owner);
   }
   assertIncluded(manifest.background?.service_worker, 'manifest.background');
+  if (manifest.default_locale) assertIncluded(`_locales/${manifest.default_locale}/messages.json`, 'manifest.default_locale');
   for (const file of manifest.background?.scripts || []) assertIncluded(file, 'manifest.background');
   assertIncluded(manifest.action?.default_popup, 'manifest.action');
   addIcons(manifest.action?.default_icon, 'manifest.action');

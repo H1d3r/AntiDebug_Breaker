@@ -218,7 +218,14 @@
                     source: 'mcp', isCurrent: () => this.connected && this.socket === socket
                 }).then(
                     result => ({ type: 'response', id: message.id, result }),
-                    error => ({ type: 'response', id: message.id, error: this.serializeError(error) })
+                    error => {
+                        const serialized = this.serializeError(error);
+                        // Protocol v1 clients reject extra error fields. Keep popup
+                        // localization metadata inside the extension, off this wire.
+                        const wireError = { code: serialized.code, message: serialized.message };
+                        if (serialized.details !== undefined) wireError.details = serialized.details;
+                        return { type: 'response', id: message.id, error: wireError };
+                    }
                 );
                 entry = { fingerprint, promise };
                 this.inflight.set(message.id, entry);

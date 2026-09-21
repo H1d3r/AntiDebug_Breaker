@@ -14,6 +14,17 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_json_parse")) {
 (function () {
     'use strict';
 
+    // Keep a standalone English fallback when this script is copied without the extension runtime.
+    const adbI18nKey = Symbol.for('antidebug-breaker.i18n');
+    function adbLogText(key, fallback, params = []) {
+        try {
+            const text = globalThis[adbI18nKey]?.t(key, params);
+            if (typeof text === 'string' && text !== key) return text;
+        } catch (_) { /* Translation must not interrupt an intercepted call. */ }
+        return fallback.replace(/\{(\d+)\}/g, (_, index) => params[index] === undefined ? '' : String(params[index]));
+    }
+
+
     const SCRIPT_ID = 'hook_json_parse';
 
     function clear_Antidebug(id) {
@@ -34,7 +45,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_json_parse")) {
         let json_p = JSON.parse;
         JSON.parse = function () {
             if (flag === "0") {
-                console.log("调用JSON.parse ---> ", arguments[0]);
+                console.log(adbLogText("log_json_parse", "JSON.parse called ---> "), arguments[0]);
                 window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                 if (is_debugger === "1") {
                     debugger;
@@ -44,7 +55,7 @@ if (!window.__ADB_OBSERVER__?.isInstalled?.("hook_json_parse")) {
                 }
             } else {
                 if (arguments[0] && typeof arguments[0] === "string" && param.some(item => arguments[0].includes(item))) {
-                    console.log("捕获到调用JSON.parse指定字符串 ---> ", arguments[0]);
+                    console.log(adbLogText("log_json_parse_matched", "Matched JSON.parse input ---> "), arguments[0]);
                     window.__ADB_OBSERVER__?.emit(SCRIPT_ID, "call", { arguments });
                     if (is_debugger === "1") {
                         debugger;

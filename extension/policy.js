@@ -1,8 +1,10 @@
 (function (root, factory) {
-    const api = factory();
+    const I = typeof module === 'object' && module.exports ? require('../i18n/core.js') : root.ADB_I18N;
+    if (typeof module === 'object' && module.exports) require('../i18n/errors.js');
+    const api = factory(I);
     if (typeof module === 'object' && module.exports) module.exports = api;
     else root.ADBPolicy = api;
-})(globalThis, function () {
+})(globalThis, function (I) {
     'use strict';
 
     const COMBINED = 'Hook_JSEncrypt_SMcrypto';
@@ -164,8 +166,16 @@
     }
     function serializeError(error) {
         const result = { code: error.code || 'INTERNAL_ERROR', message: error.message || String(error) };
+        const localized = I?.describe(result.message);
+        if (localized) {
+            Object.assign(result, localized);
+            // MCP messages remain readable in English; the popup renders the key
+            // using its own language. Native causes and captured data stay intact.
+            result.message = I.t(localized.messageKey, localized.messageParams, 'en');
+        }
         if (error.details !== undefined) result.details = error.details;
         return result;
     }
-    return { COMBINED, PARTS, CommandError, fail, object, own, expand, normalize, combine, applyScriptChanges, configSchema, normalizeConfig, mergedHooks, serializeError };
+    const message = text => I?.translate(text, 'en') || text;
+    return { COMBINED, PARTS, CommandError, fail, object, own, expand, normalize, combine, applyScriptChanges, configSchema, normalizeConfig, mergedHooks, serializeError, message };
 });

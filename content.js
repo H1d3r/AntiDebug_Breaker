@@ -24,7 +24,10 @@
     }
 
     chrome.runtime.onMessage.addListener((message, sender, respond) => {
-        if (message.type === 'ADB_ROUTES_REQUEST') {
+        if (message.type === 'ADB_LANGUAGE_CHANGED') {
+            if (['en', 'zh_CN'].includes(message.locale)) post({ type: 'ADB_LANGUAGE_CHANGED', locale: message.locale });
+            respond({ success: true });
+        } else if (message.type === 'ADB_ROUTES_REQUEST') {
             requestRoutes(message.framework, message.requestId, message.rescan);
             respond({ success: true, forwarded: true });
         } else if (message.type === 'REQUEST_VUE_ROUTER_DATA' || message.type === 'REQUEST_REACT_ROUTER_DATA') {
@@ -62,6 +65,7 @@
     send({ type: 'ADB_DOCUMENT_READY', href: location.href }).then(response => {
         if (!response?.ok) return;
         snapshot = response.result;
+        if (['en', 'zh_CN'].includes(snapshot.locale)) post({ type: 'ADB_LANGUAGE_CHANGED', locale: snapshot.locale });
         const ready = [];
         for (const id of snapshot.enabledScripts || []) {
             const config = snapshot.configs?.[id];

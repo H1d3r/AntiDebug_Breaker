@@ -1,8 +1,10 @@
 # AntiDebug Breaker MCP
 
+[简体中文](README.md) · [English](README.en.md)
+
 本地 MCP 服务把 AntiDebug Breaker 的内置脚本开关、Hook 参数、Vue/React 路由和 Agent 脚本库提供给 Agent，并默认通过已配对扩展的 `chrome.debugger` 通道控制正在运行的 Chrome 标签页，完成页面操作、源码查看、网络分析和断点调试。
 
-此目录为 MCP **0.2.0**，对应扩展 **3.1.1**。旧的 **3.0.8** 扩展没有 MCP bridge，不能直接连接；请使用对应版本的扩展与配套包。扩展 MCP 页的 **“下载 MCP + Skills”** 按钮在新标签页打开 [当前扩展版本的 GitHub Release](https://github.com/0xsdeo/AntiDebug_Breaker/releases/tag/v3.1.1)，从 **Assets** 下载 `AntiDebug_Breaker-Agent-3.1.1.zip`，解压后可按照包根目录的 `安装说明.md` 完成安装。商店用户继续使用商店扩展，不必另装源码版扩展。本仓库的打包命令只生成本地 ZIP，不上传 Chrome 商店、GitHub Releases 或 npm。
+此目录为 MCP **0.2.0**，对应扩展 **3.1.2**。旧的 **3.0.8** 扩展没有 MCP bridge，不能直接连接；请使用对应版本的扩展与配套包。扩展 MCP 页的 **“下载 MCP + Skills”** 按钮在新标签页打开 [当前扩展版本的 GitHub Release](https://github.com/0xsdeo/AntiDebug_Breaker/releases/tag/v3.1.2)，从 **Assets** 下载 `AntiDebug_Breaker-Agent-3.1.2.zip`，解压后可按照包根目录的 `安装说明.md` 完成安装。商店用户继续使用商店扩展，不必另装源码版扩展。本仓库的打包命令只生成本地 ZIP，不上传 Chrome 商店、GitHub Releases 或 npm。
 
 使用“加载已解压的扩展程序”时，覆盖本地目录后，请在 `chrome://extensions` 中找到 AntiDebug Breaker 并点击“重新加载”，再刷新目标网站。仅覆盖文件或重启浏览器，可能仍运行 Chrome 缓存的旧后台：角标与脚本注入正常，但新版弹窗读不到开关和路由。弹窗会在状态查询超时后显示后台读取错误，不会把未读取的状态渲染成所有脚本关闭。不要通过卸载扩展或清空存储解决这个问题。
 
@@ -96,7 +98,7 @@ npm run setup -- --config "C:\Users\YOUR_NAME\.antidebug-breaker\mcp.json"
     "antidebug-breaker": {
       "command": "node",
       "args": [
-        "C:/Tools/AntiDebug_Breaker-Agent-3.1.1/mcp/src/index.js"
+        "C:/Tools/AntiDebug_Breaker-Agent-3.1.2/mcp/src/index.js"
       ]
     }
   }
@@ -162,7 +164,7 @@ Chrome 弹出连接请求时，需在浏览器中允许该连接。此确认只�
 
 将配套包中的整个 `skills/antidebug-breaker-skills` 目录，按所用客户端的技能安装方式放到其支持的技能位置，保留 `SKILL.md`、`references` 与 `agents`。不要只复制主文件。重新载入后，通过客户端技能列表或加载记录确认 `Antidebug_Breaker_skills` 已加载；MCP 连接则可通过 `adb_capabilities` 与 `adb_list_pages` 验证。扩展 MCP 页的“提示词”按钮提供三类任务的推荐提示词。
 
-升级时选择与扩展对应的配套包，停止旧 MCP 服务，更新文件并在 `mcp` 目录执行 `npm ci`，然后重启客户端中的服务。路径改变时更新客户端入口，同时更新已安装的完整技能目录。默认配对配置保存在用户目录，更新配套包不会重置它；如使用自定义配置，继续指向原文件。商店更新扩展不会自动更新本地 MCP 或 Skills。本次脚本库和 Cookie 清理能力使用扩展 **3.1.1** 与 MCP **0.2.0**，请同步更新同次发布的配套文件；脚本库仍以 `adb_capabilities.extension.scriptLibrary` 的实际能力为准。
+升级时选择与扩展对应的配套包，停止旧 MCP 服务，更新文件并在 `mcp` 目录执行 `npm ci`，然后重启客户端中的服务。路径改变时更新客户端入口，同时更新已安装的完整技能目录。默认配对配置保存在用户目录，更新配套包不会重置它；如使用自定义配置，继续指向原文件。商店更新扩展不会自动更新本地 MCP 或 Skills。本发行版的脚本库和 Cookie 清理能力由扩展 **3.1.2** 与 MCP **0.2.0** 配套提供，请同步更新同次发布的配套文件；脚本库仍以 `adb_capabilities.extension.scriptLibrary` 的实际能力为准。
 
 ## 完整工具表
 
@@ -370,7 +372,7 @@ resume / stepInto / stepOver / stepOut 响应中的 `stateChangeObserved` 表示
 | --- | --- |
 | 扩展一直显示等待连接 | 确认 MCP 客户端已启动服务、URL 使用 setup 打印的 `127.0.0.1` 地址、两端使用相同配置文件和密钥。 |
 | `PORT_IN_USE` | 退出使用同一端口的手动 `npm start` 或重复 MCP 进程；如果更换配置中的 port，同步更新扩展地址。 |
-| `EXTENSION_NOT_CONNECTED` / `EXTENSION_DISCONNECTED` | 确认加载了对应版本的 3.1.1 扩展，并开启扩展 MCP 设置。 |
+| `EXTENSION_NOT_CONNECTED` / `EXTENSION_DISCONNECTED` | 确认加载了对应版本的 3.1.2 扩展，并开启扩展 MCP 设置。 |
 | `DEBUGGER_CONTROL_DISABLED` | 在扩展 MCP 面板点击“重新启用浏览器控制”；若 MCP 已停止，点击“启用 MCP 并允许 Agent 控制浏览器”。Agent 不会自行开启控制。 |
 | `DEBUGGER_PERMISSION_REQUIRED` / `DEBUGGER_UNAVAILABLE` | 更新并重新加载包含 debugger 模块的扩展；如 Chrome 要求确认新增权限并重新启用扩展，先完成该步骤。 |
 | `DEBUGGER_DETACHED` / `STALE_DEBUGGER_SESSION` | Chrome、用户或连接变化已结束会话；检查浏览器控制状态、目标及其他调试器。若通过 Chrome 取消了调试，先在面板明确重新启用，再连接/附加。 |
@@ -442,8 +444,8 @@ node tools/package.mjs
 
 输出两个独立文件：
 
-- `dist/AntiDebug_Breaker-<manifest.version>.zip`：Chrome 扩展，ZIP 根目录直接包含 manifest；当前为 `AntiDebug_Breaker-3.1.1.zip`。
-- `dist/AntiDebug_Breaker-Agent-<manifest.version>.zip`：MCP + Skills 配套包；当前为 `AntiDebug_Breaker-Agent-3.1.1.zip`，解压后有同名顶层目录。
+- `dist/AntiDebug_Breaker-<manifest.version>.zip`：Chrome 扩展，ZIP 根目录直接包含 manifest；当前为 `AntiDebug_Breaker-3.1.2.zip`。
+- `dist/AntiDebug_Breaker-Agent-<manifest.version>.zip`：MCP + Skills 配套包；当前为 `AntiDebug_Breaker-Agent-3.1.2.zip`，解压后有同名顶层目录。
 
 `--list` 验证并显示文件清单，不生成 ZIP。只构建配套包时运行 `node tools/package-agent.mjs`。扩展打包器校验 manifest、页面资源和脚本依赖；配套包收录 MCP 运行源码、package.json、package-lock.json、MCP README、完整技能目录、中文安装说明和生成的 `bundle-manifest.json`。只收录明确允许的分发文件，排除 `node_modules`、测试缓存及个人配对配置；新增资源时应同步维护清单和依赖验证。
 
@@ -452,7 +454,7 @@ node tools/package.mjs
 发布当前版本时：
 
 1. 在完整源码上完成相应验证，运行 `node tools/package.mjs`，检查两个 ZIP 的内容和版本。
-2. 在 [0xsdeo/AntiDebug_Breaker 的 GitHub Releases](https://github.com/0xsdeo/AntiDebug_Breaker/releases) 发布 tag 为 **`v3.1.1`** 的 Release，上传 **`AntiDebug_Breaker-Agent-3.1.1.zip`** 附件，保持文件名不变。
-3. 验证对应附件能够下载并按包内说明安装，再将 `AntiDebug_Breaker-3.1.1.zip` 通过原 Chrome 商店条目提交更新。
+2. 在 [0xsdeo/AntiDebug_Breaker 的 GitHub Releases](https://github.com/0xsdeo/AntiDebug_Breaker/releases) 发布 tag 为 **`v3.1.2`** 的 Release，上传 **`AntiDebug_Breaker-Agent-3.1.2.zip`** 附件，保持文件名不变。
+3. 验证对应附件能够下载并按包内说明安装，再将 `AntiDebug_Breaker-3.1.2.zip` 通过原 Chrome 商店条目提交更新。
 
 下载按钮在新标签页打开该扩展版本的 Release 页面，地址格式为 `https://github.com/0xsdeo/AntiDebug_Breaker/releases/tag/v<扩展版本>`，由用户在 **Assets** 选择配套包，不会自动转向最新 Release。发布元数据集中保存在项目根目录的 `agent-release.json`：升级时同步修改 `extensionVersion`、`tag`、`assetName`；MCP 自身版本变化时同步修改 `mcpVersion`，并更新安装说明中的版本示例。打包器会检查元数据与扩展 manifest、MCP package/lock 是否一致；不要用不同文件名替代约定附件。**打包命令不会发布或上传任何内容；Release 尚未发布时页面不可用，附件尚未上传时 Assets 中不会出现配套包。**
